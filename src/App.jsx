@@ -112,7 +112,7 @@ const EPISODES = [
         law:"공직선거법 제79조"
       }
     ]
-  }
+  },
   {
     id: 4,
     title: "수당 장부 조작",
