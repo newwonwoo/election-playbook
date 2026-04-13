@@ -493,9 +493,15 @@ function VerdictScreen({ episode, judgments, onNext, isLast }) {
             </button>
           )}
           {isLast && (
-            <div style={{ fontSize:"13px", color:"#f0d060", letterSpacing:"2px", padding:"14px" }}>
-              🏆 모든 사건 해결 완료
-            </div>
+            <button onClick={onNext} style={{
+              background:"#e6c619", border:"none",
+              color:"#080810", fontSize:"13px", letterSpacing:"3px",
+              padding:"14px 40px", cursor:"pointer",
+              fontFamily:"'Noto Sans KR', 'Courier New', monospace",
+              fontWeight:"900", transition:"all 0.3s"
+            }}>
+              최종 판결 수령 →
+            </button>
           )}
         </div>
       </div>
@@ -609,8 +615,145 @@ function InvestigationScreen({ episode, onComplete }) {
 }
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
+// ─── ENDING SCREEN ────────────────────────────────────────────────────────────
+function EndingScreen({ totalCorrect, totalQuestions }) {
+  const [phase, setPhase] = useState(0);
+  const pct = Math.round((totalCorrect / totalQuestions) * 100);
+  const rank = pct === 100 ? "강남구 사무국장" : pct >= 75 ? "서초구 사무국장" : pct >= 50 ? "마포구 사무국장" : "신림동 담당관";
+
+  const { displayed: msg1, done: done1 } = useTypewriter("수고했다, 수사관.", 60, phase >= 1);
+  const { displayed: msg2, done: done2 } = useTypewriter("김○○ 캠프의 선거비용 비리 전모가 밝혀졌다.", 40, phase >= 2);
+  const { displayed: msg3, done: done3 } = useTypewriter(`총 허위청구 적발액: ${((totalQuestions - totalCorrect) * 45).toLocaleString()}만원`, 40, phase >= 3);
+  const { displayed: msg4, done: done4 } = useTypewriter("중앙선거관리위원회는 특별 인사명령을 발령한다.", 40, phase >= 4);
+
+  useEffect(() => { setTimeout(() => setPhase(1), 800); }, []);
+  useEffect(() => { if (done1) setTimeout(() => setPhase(2), 600); }, [done1]);
+  useEffect(() => { if (done2) setTimeout(() => setPhase(3), 500); }, [done2]);
+  useEffect(() => { if (done3) setTimeout(() => setPhase(4), 600); }, [done3]);
+  useEffect(() => { if (done4) setTimeout(() => setPhase(5), 800); }, [done4]);
+
+  return (
+    <div style={{
+      minHeight:"100vh", background:"#080810", display:"flex", flexDirection:"column",
+      alignItems:"center", justifyContent:"center", padding:"40px 20px",
+      fontFamily:"'Noto Sans KR', 'Courier New', monospace", position:"relative", overflow:"hidden"
+    }}>
+      {/* 황금빛 glow */}
+      <div style={{
+        position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)",
+        width:"600px", height:"600px",
+        background:"radial-gradient(ellipse, rgba(230,198,25,0.06) 0%, transparent 70%)",
+        pointerEvents:"none"
+      }}/>
+      {/* Scanlines */}
+      <div style={{
+        position:"absolute", inset:0,
+        backgroundImage:"repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.1) 3px,rgba(0,0,0,0.1) 4px)",
+        pointerEvents:"none"
+      }}/>
+
+      <div style={{ position:"relative", maxWidth:"640px", width:"100%", textAlign:"center" }}>
+
+        {/* 인사명령서 */}
+        {phase >= 5 && (
+          <div style={{
+            border:"1px solid rgba(230,198,25,0.5)",
+            background:"rgba(230,198,25,0.03)",
+            padding:"40px 32px", marginBottom:"40px",
+            animation:"fadeInUp 0.8s ease"
+          }}>
+            <div style={{ fontSize:"11px", fontWeight:"800", color:"#e6c619", letterSpacing:"5px", marginBottom:"24px" }}>
+              인 사 명 령 서
+            </div>
+            <div style={{
+              width:"48px", height:"1px", background:"rgba(230,198,25,0.3)",
+              margin:"0 auto 24px"
+            }}/>
+            <div style={{ fontSize:"14px", fontWeight:"800", color:"#9a9aaa", lineHeight:2, marginBottom:"24px" }}>
+              귀 수사관의 탁월한 수사 역량과<br/>
+              선거비용 회계 전문성을 높이 평가하여<br/>
+              아래와 같이 특별 승진 임명한다.
+            </div>
+
+            <div style={{
+              fontSize:"13px", fontWeight:"800", color:"#e6c619",
+              letterSpacing:"3px", marginBottom:"8px"
+            }}>
+              임명직위
+            </div>
+            <div style={{
+              fontSize: window.innerWidth < 480 ? "28px" : "40px",
+              fontWeight:"900", color:"#f5f2ea",
+              fontFamily:"Georgia, serif", marginBottom:"32px",
+              textShadow:"0 0 40px rgba(230,198,25,0.3)"
+            }}>
+              {rank}
+            </div>
+
+
+          </div>
+        )}
+
+        {/* 타이프라이터 메시지들 */}
+        <div style={{ textAlign:"left", marginBottom:"40px" }}>
+          {phase >= 1 && (
+            <div style={{ fontSize:"16px", fontWeight:"800", color:"#f5f2ea", lineHeight:2.2, minHeight:"28px" }}>
+              {msg1}
+              {phase === 1 && !done1 && <span style={{ display:"inline-block", width:"2px", height:"16px", background:"#e6c619", marginLeft:"3px", verticalAlign:"middle", animation:"blink 0.7s step-end infinite" }}/>}
+            </div>
+          )}
+          {phase >= 2 && (
+            <div style={{ fontSize:"15px", fontWeight:"700", color:"#c0c0d0", lineHeight:2.2, minHeight:"28px" }}>
+              {msg2}
+              {phase === 2 && !done2 && <span style={{ display:"inline-block", width:"2px", height:"14px", background:"#e6c619", marginLeft:"3px", verticalAlign:"middle", animation:"blink 0.7s step-end infinite" }}/>}
+            </div>
+          )}
+          {phase >= 3 && (
+            <div style={{ fontSize:"15px", fontWeight:"800", color:"#e6c619", lineHeight:2.2, minHeight:"28px" }}>
+              {msg3}
+              {phase === 3 && !done3 && <span style={{ display:"inline-block", width:"2px", height:"14px", background:"#e6c619", marginLeft:"3px", verticalAlign:"middle", animation:"blink 0.7s step-end infinite" }}/>}
+            </div>
+          )}
+          {phase >= 4 && (
+            <div style={{ fontSize:"15px", fontWeight:"700", color:"#c0c0d0", lineHeight:2.2, minHeight:"28px" }}>
+              {msg4}
+              {phase === 4 && !done4 && <span style={{ display:"inline-block", width:"2px", height:"14px", background:"#e6c619", marginLeft:"3px", verticalAlign:"middle", animation:"blink 0.7s step-end infinite" }}/>}
+            </div>
+          )}
+        </div>
+
+        {/* 처음부터 버튼 */}
+        {phase >= 5 && (
+          <div style={{ animation:"fadeInUp 0.8s ease 0.5s both" }}>
+            <div style={{ fontSize:"13px", fontWeight:"800", color:"#6a6a7a", letterSpacing:"2px", marginBottom:"20px" }}>
+              앞으로도 잘 부탁한다.
+            </div>
+            <button onClick={() => window.location.reload()} style={{
+              background:"transparent", border:"1px solid #e6c619",
+              color:"#e6c619", fontSize:"13px", letterSpacing:"4px",
+              padding:"14px 48px", cursor:"pointer",
+              fontFamily:"'Noto Sans KR', 'Courier New', monospace",
+              fontWeight:"800", transition:"all 0.3s"
+            }}
+            onMouseEnter={e => { e.target.style.background="#e6c619"; e.target.style.color="#080810"; }}
+            onMouseLeave={e => { e.target.style.background="transparent"; e.target.style.color="#e6c619"; }}>
+              처음부터 다시
+            </button>
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        @keyframes fadeInUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+      `}</style>
+    </div>
+  );
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [screen, setScreen] = useState("intro"); // intro | investigation | verdict | (next episode)
+  const [screen, setScreen] = useState("intro"); // intro | investigation | verdict | ending
   const [epIdx, setEpIdx] = useState(0);
   const [allJudgments, setAllJudgments] = useState({});
 
@@ -625,6 +768,8 @@ export default function App() {
     if (epIdx + 1 < EPISODES.length) {
       setEpIdx(i => i + 1);
       setScreen("intro");
+    } else {
+      setScreen("ending");
     }
   };
 
@@ -642,6 +787,13 @@ export default function App() {
   const allJudged = episode.evidence.every(e => epJudgments[e.id] !== undefined);
   const allRevealedLocal = episode.evidence.every(e => epRevealed[e.id]);
 
+  if (screen === "ending") {
+    const total = EPISODES.reduce((acc, ep) => acc + ep.evidence.length, 0);
+    const correct = EPISODES.reduce((acc, ep) =>
+      acc + ep.evidence.filter(e => allJudgments[e.id] === e.answer).length, 0);
+    return <EndingScreen totalCorrect={correct} totalQuestions={total} />;
+  }
+
   if (screen === "intro") {
     return <CinematicIntro episode={episode} onStart={() => setScreen("investigation")} />;
   }
@@ -652,7 +804,10 @@ export default function App() {
         episode={episode}
         judgments={epJudgments}
         isLast={epIdx === EPISODES.length - 1}
-        onNext={handleNext}
+        onNext={() => {
+          setAllJudgments(p => ({ ...p, ...epJudgments }));
+          handleNext();
+        }}
       />
     );
   }
