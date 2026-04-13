@@ -641,7 +641,8 @@ const HANDOUTS = [
   },
 ];
 
-
+// 버전2: 안내서 챕터 기반
+const CHAPTERS = [
   {
     id: "I",
     title: "선거비용 보전 및 부담비용 청구",
