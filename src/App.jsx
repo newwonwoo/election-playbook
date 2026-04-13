@@ -113,7 +113,428 @@ const EPISODES = [
       }
     ]
   }
+  {
+    id: 4,
+    title: "수당 장부 조작",
+    subtitle: "EPISODE 04 — THE PAYROLL FRAUD",
+    briefing: "현수막, 소품, 차량까지 털렸는데\n박○○은 포기하지 않았다.\n이번엔 선거사무원 수당 장부를 건드렸다.\n서명 하나가 수백만원을 가른다.",
+    suspect: "김○○ 후보 캠프 — 회계책임자 박○○",
+    evidence: [
+      {
+        id:"E13", type:"수당지급명세서", title:"계좌이체 후 서명 생략",
+        content:"선거사무원 15명에게 수당을 계좌이체로 지급.\n'계좌이체했으니 서명 불필요'라며\n수당·실비 지급명세서에 수령인 서명·날인 미징구.\n총 지급액 750만원 보전 청구.",
+        amount:"750만원", answer:"위법",
+        explanation:"계좌이체를 하였더라도 선거사무관계자 수당·실비 지급명세서에 수령인의 서명·날인을 반드시 받아야 합니다. 서명 없는 명세서는 증빙 불충분으로 미보전 처리됩니다.",
+        law:"공직선거관리규칙 제59조"
+      },
+      {
+        id:"E14", type:"영수증", title:"연설차량 기사 숙박비 별도 지급",
+        content:"공개장소 연설·대담차량 기사에게\n수당 외 숙박비 1박 8만원씩 10박분\n총 80만원을 별도 지급 후 선거비용으로 청구.",
+        amount:"80만원", answer:"위법",
+        explanation:"공개장소 연설·대담차량 기사인부임 외에 별도의 숙박비와 식대는 지급할 수 없으며, 지급한 숙박비는 위법비용에 해당하여 보전되지 않습니다.",
+        law:"공직선거법 제62조, 제135조"
+      },
+      {
+        id:"E15", type:"계약서", title:"국회의원 보좌관 선거사무장 수당 청구",
+        content:"국회의원 보좌관을 선거사무장으로 선임.\n일반 선거사무장과 동일한 수당 전액을\n선거비용으로 청구함.",
+        amount:"190만원", answer:"위법",
+        explanation:"국회의원 보좌관이 선거사무관계자로 선임된 경우 공직선거법 제135조 단서에 따라 실비만 지급할 수 있습니다. 수당은 지급 불가로 위법비용입니다.",
+        law:"공직선거법 제135조 제1항"
+      },
+      {
+        id:"E16", type:"영수증", title:"율동 강사 인건비 선거비용 처리",
+        content:"선거사무원 율동 강습을 위해\n외부 강사를 3일간 고용.\n강사비 45만원을 선거비용으로 청구.",
+        amount:"45만원", answer:"위법",
+        explanation:"선거운동 율동을 강습하는 강사에게 지급하는 인건비는 선거운동 준비행위에 소요된 경비로 선거비용외 정치자금에 해당하여 보전되지 않습니다.",
+        law:"공직선거법 제62조"
+      }
+    ]
+  },
+  {
+    id: 5,
+    title: "디지털 광고 이중청구",
+    subtitle: "EPISODE 05 — THE DIGITAL DOUBLE BILL",
+    briefing: "박○○의 비리는 온라인으로 번졌다.\n유튜브, 인터넷 광고, 문자메시지...\n디지털 흔적은 지울 수 없다.\n영수증 하나하나가 증거다.",
+    suspect: "김○○ 후보 캠프 — 회계책임자 박○○",
+    evidence: [
+      {
+        id:"E17", type:"영수증", title:"유튜브 영상 제작비 보전 청구",
+        content:"유튜브 채널 홍보 영상 3편 제작.\n제작비 총 180만원을 선거비용으로 청구.\n'인터넷 광고'라고 항목 기재.",
+        amount:"180만원", answer:"위법",
+        explanation:"유튜브는 인터넷 홈페이지로 분류되며 미보전대상 선거비용에 해당합니다. 정치자금 회계관리 프로그램에서도 '그밖의 선거운동-인터넷홈페이지·모바일앱'으로 분류되어 보전되지 않습니다.",
+        law:"공직선거법 제59조, 제82조의7"
+      },
+      {
+        id:"E18", type:"청구서", title:"인터넷 광고 미사용 도안 3종 청구",
+        content:"인터넷 광고 도안 5종 납품받고 전액 지급.\n실제 광고에 사용된 도안은 3종.\n미사용 도안 2종 제작비도 포함하여 청구.",
+        amount:"243만원 (미사용분 97만원 포함)", answer:"부분보전",
+        explanation:"선거운동에 실제 사용된 인터넷 광고 도안만 보전대상입니다. 미사용 도안 2종의 제작비는 보전되지 않으며, 실제 사용된 3종 분량만 보전됩니다.",
+        law:"공직선거법 제82조의7"
+      },
+      {
+        id:"E19", type:"영수증", title:"자동전화걸기 시스템 비용 청구",
+        content:"전화번호 자동입력 후 자동으로 발신하는\n'오토다이얼' 시스템 이용.\n통화료 및 시스템 이용료 120만원 청구.",
+        amount:"120만원", answer:"위법",
+        explanation:"자동걸기시스템(Auto Dial)을 설치한 전화는 컴퓨터를 이용한 자동 송신장치에 해당하여 위법비용입니다. 공직선거법 제59조에서 제외하는 방법으로 보전되지 않습니다.",
+        law:"공직선거법 제59조 제4호"
+      },
+      {
+        id:"E20", type:"영수증", title:"개인통장 문자발송비 정치자금통장 보전",
+        content:"후보자가 개인통장에서 문자발송비 50만원 지출.\n회계책임자가 즉시 정치자금 통장에서\n동일금액을 후보자에게 입금 후 보전 청구.",
+        amount:"50만원", answer:"위법",
+        explanation:"신고된 정치자금 예금계좌 외에서 지출한 비용은 보전되지 않습니다. 개인통장을 통한 선거비용 지출은 정치자금법 위반에 해당합니다.",
+        law:"정치자금법 제40조"
+      }
+    ]
+  },
+  {
+    id: 6,
+    title: "개소식 비용 세탁",
+    subtitle: "EPISODE 06 — THE KICKOFF WASH",
+    briefing: "선거사무소 개소식.\n축하객, 앰프, 다과, 백드롭...\n그 모든 비용이 영수증에 남았다.\n어디까지가 선거비용인가.",
+    suspect: "김○○ 후보 캠프 — 회계책임자 박○○",
+    evidence: [
+      {
+        id:"E21", type:"영수증", title:"개소식 앰프 임차비 선거비용 청구",
+        content:"선거사무소 개소식 행사에 사용할\n앰프·스피커 임차비 35만원을\n선거비용으로 청구함.",
+        amount:"35만원", answer:"위법",
+        explanation:"개소식에 사용한 앰프 임차비는 선거운동을 위해 지출한 비용이 아니므로 선거비용외 정치자금에 해당합니다. 개소식 자체는 선거운동이 아닙니다.",
+        law:"공직선거법 제61조"
+      },
+      {
+        id:"E22", type:"영수증", title:"공약발표 기자회견 백드롭 제작비 청구",
+        content:"예비후보자 공약발표 기자회견 배경용\n백드롭(현수막) 제작비 28만원을\n선거비용으로 청구함.",
+        amount:"28만원", answer:"위법",
+        explanation:"기자회견에서 사용하는 백드롭은 선거비용외 정치자금에 해당하여 보전대상이 아닙니다. 예비후보자의 공약발표 기자회견은 선거운동 방법에 해당하지 않습니다.",
+        law:"공직선거법 제60조의3"
+      },
+      {
+        id:"E23", type:"영수증", title:"선거사무소 내부 현수막 제작비 청구",
+        content:"선거사무소 실내 벽면에 걸 내부 현수막\n3장 제작비 45만원을\n선거비용(현수막 항목)으로 청구.",
+        amount:"45만원", answer:"위법",
+        explanation:"선거사무소 내부현수막은 선거비용외 정치자금에 해당하여 보전대상이 아닙니다. 외벽·외부 현수막만 보전대상 선거비용입니다.",
+        law:"공직선거법 제61조"
+      },
+      {
+        id:"E24", type:"영수증", title:"선거사무소 조명 손해배상 비용 청구",
+        content:"선거사무소 현수막 게시로 인해\n인접 상가 영업 방해 발생.\n통상 손해배상금 20만원을 선거비용으로 청구.",
+        amount:"20만원", answer:"위법",
+        explanation:"선거사무소 현수막 게시로 인한 통상의 손해배상 비용은 선거비용외 정치자금으로 보전대상이 아닙니다.",
+        law:"공직선거법 제61조"
+      }
+    ]
+  },
+  {
+    id: 7,
+    title: "최후의 증거",
+    subtitle: "EPISODE 07 — THE FINAL EVIDENCE",
+    briefing: "수사 마지막 단계.\n박○○은 증빙서류까지 조작하려 했다.\n하지만 디테일이 그를 배신한다.\n이것이 마지막 사건이다.",
+    suspect: "김○○ 후보 캠프 — 회계책임자 박○○",
+    evidence: [
+      {
+        id:"E25", type:"영수증+사진", title:"선거운동 현장 사진 미첨부 청구",
+        content:"현수막·소품 등 다수 항목 보전 청구.\n사진 증빙자료 미제출.\n'분실했다'는 이유로 영수증만 첨부하여 제출.",
+        amount:"320만원", answer:"위법",
+        explanation:"보전청구 시 선거운동에 실제 사용되었음을 증명하는 사진 등 증빙자료를 제출해야 합니다. 정당한 사유 없이 증빙서류를 미제출하면 해당 항목은 미보전 처리됩니다.",
+        law:"공직선거관리규칙 제51조의3"
+      },
+      {
+        id:"E26", type:"세금계산서", title:"메이크업 비용 선거비용 처리",
+        content:"선거운동기간 매일 아침\n전문 미용사에게 메이크업을 받음.\n총 13일분 메이크업 비용 65만원을 청구.",
+        amount:"65만원", answer:"위법",
+        explanation:"선거운동기간 중 미용전문가에게 메이크업을 받은 비용은 선거비용외 정치자금에 해당합니다. 단, 방송연설을 위한 전문 분장비는 보전대상입니다.",
+        law:"공직선거법 제79조"
+      },
+      {
+        id:"E27", type:"영수증", title:"선거사무소 관리비 전액 선거비용 청구",
+        content:"후보자 개인 사무실에 선거사무소 설치.\n선거 전부터 납부해온 관리비(월 15만원)를\n전액 선거비용으로 청구.",
+        amount:"45만원(3개월)", answer:"부분보전",
+        explanation:"선거사무소 관리비는 선거비용외 정치자금입니다. 단, 선거사무소 설치 전부터 통상 지출해온 금액을 초과하는 부분만 선거비용으로 인정됩니다. 기존에 내던 금액과 동일하다면 전액 미보전입니다.",
+        law:"공직선거법 제61조"
+      },
+      {
+        id:"E28", type:"영수증", title:"로고송 예비후보자 시절 선금 지급",
+        content:"예비후보자 시절 선거운동용 로고송 제작\n선금 100만원을 지급.\n이를 선거비용으로 보전 청구.",
+        amount:"100만원", answer:"보전",
+        explanation:"후보자의 선거운동을 위한 로고송 제작비를 예비후보자 때 지출하더라도 보전대상에 해당합니다. 지출 시기가 예비후보자 시절이어도 선거운동용이라면 정상 보전됩니다.",
+        law:"공직선거법 제79조"
+      }
+    ]
+  },
 ];
+
+// ─── FINAL EPISODE DATA ───────────────────────────────────────────────────────
+const FINAL_EPISODE = {
+  id: 8,
+  title: "아직 끝나지 않았다",
+  subtitle: "FINAL CHAPTER — IT'S NOT OVER",
+  briefing: "박○○은 교묘했다.\n모든 혐의를 선거사무장 이○○에게 뒤집어씌우고\n증거를 인멸한 채 사라졌다.\n\n6개월 후 — 마포구 국회의원 캠프 회계담당.\n이번엔 더 정교하게, 더 대담하게.\n10개의 덫을 동시에 놓았다.\n\n당신만이 막을 수 있다.",
+  suspect: "마포구 국회의원 캠프 — 회계담당 박○○ (재범)",
+  evidence: [
+    {
+      id:"F01", type:"복합영수증", title:"예비후보·후보자 혼합 현수막 전액 청구",
+      content:"예비후보 40일 + 후보자 13일 사용한 현수막.\n전체 제작비 300만원을 후보자 기간 선거비용으로\n전액 청구. 일할계산 없이 보전 요구.",
+      amount:"300만원", answer:"부분보전",
+      explanation:"현수막을 예비후보 때 제작해 후보자 기간까지 사용한 경우 전체 게시일수(53일) 중 선거운동기간(13일)에 해당하는 금액만 일할 계산하여 보전합니다. 전액 청구는 과다청구입니다.",
+      law:"공직선거법 제60조의3, 제61조"
+    },
+    {
+      id:"F02", type:"계약서", title:"법인 소유 차량 무상 대여 후 임차비 청구",
+      content:"후보자가 대표인 법인 소유 차량을\n무상으로 연설·대담차량으로 사용.\n통상 임차비 250만원을 선거비용으로 청구.",
+      amount:"250만원", answer:"위법",
+      explanation:"법인 소유 차량을 통상 가격으로 임차하는 경우는 보전 가능하지만, 무상으로 대여받아 사용하면서 임차비를 청구하는 것은 허위청구에 해당하여 미보전 처리됩니다.",
+      law:"공직선거법 제79조, 정치자금법"
+    },
+    {
+      id:"F03", type:"영수증", title:"확성장치 2세트 동시 운용 임차비 청구",
+      content:"연설차량에 확성장치(앰프+스피커) 2세트를\n동시에 설치·운용.\n2세트 임차비 전액 160만원을 청구.",
+      amount:"160만원", answer:"부분보전",
+      explanation:"확성장치를 2세트 동시에 사용한 경우 위법한 선거운동으로 모두 미보전이 원칙입니다. 단, 1세트를 단순 예비용으로만 보유한 경우에는 실제 사용 1세트분만 보전됩니다. 동시 운용이므로 1세트분만 부분보전 처리됩니다.",
+      law:"공직선거법 제79조"
+    },
+    {
+      id:"F04", type:"지급명세서", title:"선거사무원·운전기사 겸임 높은 금액 지급",
+      content:"선거사무원이 연설차량 기사를 겸임.\n선거사무원 수당 8만원/일,\n운전기사 인부임 12만원/일.\n12만원 기준으로 13일 지급 후 보전 청구.",
+      amount:"156만원", answer:"보전",
+      explanation:"선거사무관계자가 연설·대담차량 기사를 겸하는 경우, 기사 인부임과 선거사무관계자 수당·실비 중 큰 금액을 지급할 수 있습니다. 12만원(기사 인부임)이 더 크므로 적법하게 보전됩니다.",
+      law:"공직선거법 제62조, 제79조"
+    },
+    {
+      id:"F05", type:"영수증", title:"카카오톡 채널 유료서비스 이용료 청구",
+      content:"카카오톡 채널 유료서비스로\n선거운동 정보를 유권자에게 전송.\n선거운동기간 중 이용료 45만원을 청구.",
+      amount:"45만원", answer:"보전",
+      explanation:"카카오톡 채널 유료서비스를 이용하여 선거운동정보를 전송하는 경우, 전자우편 전송대행업체 위탁에 해당합니다. 선거운동기간 중 이용한 비용은 보전대상입니다.",
+      law:"공직선거법 제59조"
+    },
+    {
+      id:"F06", type:"세금계산서", title:"로고송 저작권 대행 수수료·부가세 포함 청구",
+      content:"로고송 제작업체가 저작재산권·저작인격권 대행 +\n부가가치세 포함 총괄 세금계산서로 청구.\n총액 220만원 선거비용으로 보전 요구.",
+      amount:"220만원", answer:"보전",
+      explanation:"로고송 제작업체가 저작권 납부를 대행하고 부가가치세를 포함하여 총괄 세금계산서로 청구한 경우, 대행 수수료와 부가가치세 포함 전액이 보전대상입니다.",
+      law:"공직선거법 제79조"
+    },
+    {
+      id:"F07", type:"계약서+영수증", title:"선거 컨설팅비와 인쇄물 도안비 혼재 청구",
+      content:"기획사에서 정책·공약개발 컨설팅 80만원 +\n선거공보 기획·도안료 120만원을\n하나의 세금계산서 200만원으로 청구.",
+      amount:"200만원", answer:"부분보전",
+      explanation:"정책·공약개발 컨설팅 비용은 선거비용외 정치자금입니다. 그러나 선거공보 기획·도안 비용은 보전대상 선거비용입니다. 컨설팅 80만원은 미보전, 도안료 120만원만 보전됩니다.",
+      law:"공직선거법 제64조, 제65조"
+    },
+    {
+      id:"F08", type:"영수증", title:"선거운동기간 전 차량 임차분 일할계산 미적용",
+      content:"선거운동기간 3일 전부터 연설차량 임차.\n총 임차비 16일분 480만원 전액을\n선거비용으로 청구. 일할계산 적용 안 함.",
+      amount:"480만원", answer:"부분보전",
+      explanation:"선거운동기간 개시일 전에 임차한 비용은 보전되지 않습니다. 선거운동기간(13일)에 해당하는 금액만 일할 계산하여 보전됩니다. 나머지 3일분은 미보전입니다.",
+      law:"공직선거법 제79조"
+    },
+    {
+      id:"F09", type:"영수증", title:"AI 딥페이크 합성 영상 제작비 보전 청구",
+      content:"AI 기술로 후보자 얼굴을 실제처럼 합성한\n선거운동용 영상 3편 제작.\n'선거운동 홍보영상' 명목으로 150만원 청구.",
+      amount:"150만원", answer:"위법",
+      explanation:"AI 기술 등을 이용하여 실제와 구분하기 어려운 가상의 영상을 제작해 선거운동에 사용한 경우, 공직선거법 제82조의8에 따른 위법비용으로 미보전입니다.",
+      law:"공직선거법 제82조의8"
+    },
+    {
+      id:"F10", type:"복합서류", title:"선거벽보 제출 전·후 정정비용 전액 청구",
+      content:"선거벽보 관할 선관위 제출 전 내용 정정비 30만원.\n제출 후 추가 정정 발생: 정정비 25만원.\n총 55만원 전액 보전 청구.",
+      amount:"55만원", answer:"부분보전",
+      explanation:"선거관리위원회 제출 전 정정·삭제 비용은 보전됩니다. 그러나 제출 후 정정·삭제 비용은 미보전 선거비용입니다. 제출 전 30만원은 보전, 제출 후 25만원은 미보전입니다.",
+      law:"공직선거법 제64조, 제65조"
+    }
+  ]
+};
+
+// ─── TWIST ENDING ─────────────────────────────────────────────────────────────
+function TwistEndingScreen() {
+  const [phase, setPhase] = useState(0);
+  const [choice, setChoice] = useState(null);
+
+  const { displayed: t1, done: d1 } = useTypewriter("수사관 동지.", 80, phase >= 1);
+  const { displayed: t2, done: d2 } = useTypewriter("당신은 완벽했다.", 60, phase >= 2);
+  const { displayed: t3, done: d3 } = useTypewriter("...너무 완벽했어.", 60, phase >= 3);
+  const { displayed: t4, done: d4 } = useTypewriter("사실 나도 알고 있었다.", 50, phase >= 4);
+  const { displayed: t5, done: d5 } = useTypewriter("박○○이 이○○에게 누명을 씌운 것도.", 40, phase >= 5);
+  const { displayed: t6, done: d6 } = useTypewriter("새 캠프에서 또 다른 비리를 저지른 것도.", 40, phase >= 6);
+  const { displayed: t7, done: d7 } = useTypewriter("하지만 나는 묵인했다.", 50, phase >= 7);
+  const { displayed: t8, done: d8 } = useTypewriter("그리고 당신도 이제 알게 됐지.", 45, phase >= 8);
+  const { displayed: t9, done: d9 } = useTypewriter("강남구 사무국장 자리 — 공짜가 아니었거든.", 40, phase >= 9);
+
+  useEffect(() => { setTimeout(() => setPhase(1), 1000); }, []);
+  useEffect(() => { if (d1) setTimeout(() => setPhase(2), 700); }, [d1]);
+  useEffect(() => { if (d2) setTimeout(() => setPhase(3), 1200); }, [d2]);
+  useEffect(() => { if (d3) setTimeout(() => setPhase(4), 800); }, [d3]);
+  useEffect(() => { if (d4) setTimeout(() => setPhase(5), 500); }, [d4]);
+  useEffect(() => { if (d5) setTimeout(() => setPhase(6), 400); }, [d5]);
+  useEffect(() => { if (d6) setTimeout(() => setPhase(7), 800); }, [d6]);
+  useEffect(() => { if (d7) setTimeout(() => setPhase(8), 600); }, [d7]);
+  useEffect(() => { if (d8) setTimeout(() => setPhase(9), 500); }, [d8]);
+  useEffect(() => { if (d9) setTimeout(() => setPhase(10), 1000); }, [d9]);
+
+  const Cursor = () => (
+    <span style={{
+      display:"inline-block", width:"2px", height:"16px",
+      background:"#e6c619", marginLeft:"3px", verticalAlign:"middle",
+      animation:"blink 0.7s step-end infinite"
+    }}/>
+  );
+
+  if (choice === "refuse") return (
+    <div style={{
+      minHeight:"100vh", background:"#080810", display:"flex", flexDirection:"column",
+      alignItems:"center", justifyContent:"center", padding:"40px 20px",
+      fontFamily:"'Noto Sans KR', 'Courier New', monospace"
+    }}>
+      <div style={{ maxWidth:"600px", width:"100%", textAlign:"center" }}>
+        <div style={{ fontSize:"11px", fontWeight:"800", color:"#3abf70", letterSpacing:"5px", marginBottom:"40px", animation:"fadeInUp 0.6s ease" }}>
+          양심을 선택하다
+        </div>
+        <div style={{
+          border:"1px solid rgba(58,191,112,0.4)", background:"rgba(58,191,112,0.04)",
+          padding:"40px 32px", marginBottom:"40px", animation:"fadeInUp 0.6s ease 0.2s both"
+        }}>
+          <div style={{ fontSize:"20px", fontWeight:"900", color:"#f5f2ea", lineHeight:2, fontFamily:"Georgia, serif", marginBottom:"24px" }}>
+            "그래."
+          </div>
+          <div style={{ fontSize:"15px", fontWeight:"700", color:"#9a9aaa", lineHeight:2.2 }}>
+            양심은 지켰다.<br/>
+            하지만 넌 이 도시에서<br/>
+            살아남지 못할 거야.
+          </div>
+        </div>
+        <div style={{ fontSize:"13px", fontWeight:"800", color:"#6a6a7a", letterSpacing:"2px", marginBottom:"32px", animation:"fadeInUp 0.6s ease 0.5s both" }}>
+          — 진정한 수사관은 결과보다 원칙을 선택한다
+        </div>
+        <button onClick={() => window.location.reload()} style={{
+          background:"transparent", border:"1px solid #3abf70", color:"#3abf70",
+          fontSize:"13px", letterSpacing:"4px", padding:"14px 48px", cursor:"pointer",
+          fontFamily:"'Noto Sans KR', 'Courier New', monospace", fontWeight:"800", transition:"all 0.3s"
+        }}
+        onMouseEnter={e => { e.target.style.background="#3abf70"; e.target.style.color="#080810"; }}
+        onMouseLeave={e => { e.target.style.background="transparent"; e.target.style.color="#3abf70"; }}>
+          처음부터 다시
+        </button>
+      </div>
+      <style>{`@keyframes fadeInUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }`}</style>
+    </div>
+  );
+
+  if (choice === "join") return (
+    <div style={{
+      minHeight:"100vh", background:"#080810", display:"flex", flexDirection:"column",
+      alignItems:"center", justifyContent:"center", padding:"40px 20px",
+      fontFamily:"'Noto Sans KR', 'Courier New', monospace", position:"relative", overflow:"hidden"
+    }}>
+      <div style={{
+        position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)",
+        width:"800px", height:"800px",
+        background:"radial-gradient(ellipse, rgba(180,20,20,0.12) 0%, transparent 65%)",
+        pointerEvents:"none", animation:"pulseGlow 3s ease-in-out infinite"
+      }}/>
+      <div style={{ position:"relative", maxWidth:"620px", width:"100%", textAlign:"center" }}>
+        <div style={{ fontSize:"11px", fontWeight:"800", color:"#e6c619", letterSpacing:"5px", marginBottom:"40px", animation:"fadeInUp 0.6s ease" }}>
+          공범이 되다
+        </div>
+        <div style={{
+          border:"1px solid rgba(180,20,20,0.6)", background:"rgba(180,20,20,0.06)",
+          padding:"40px 32px", marginBottom:"40px", animation:"fadeInUp 0.6s ease 0.2s both", position:"relative"
+        }}>
+          <div style={{ position:"absolute", top:"16px", right:"16px", fontSize:"10px", fontWeight:"800", color:"rgba(180,20,20,0.5)", letterSpacing:"3px" }}>기밀문서</div>
+          <div style={{ fontSize:"11px", fontWeight:"800", color:"#e6c619", letterSpacing:"5px", marginBottom:"20px" }}>공 범 각 서</div>
+          <div style={{ width:"40px", height:"1px", background:"rgba(180,20,20,0.4)", margin:"0 auto 24px" }}/>
+          <div style={{ fontSize:"20px", fontWeight:"900", color:"#f5f2ea", lineHeight:2, fontFamily:"Georgia, serif", marginBottom:"24px" }}>
+            "현명한 선택이야.<br/>환영한다, 동료."
+          </div>
+          <div style={{ fontSize:"15px", fontWeight:"700", color:"#9a9aaa", lineHeight:2.2 }}>
+            다음 선거는 마포구.<br/>이번엔 더 크게 한다.<br/>준비됐나?
+          </div>
+        </div>
+        <div style={{ fontSize:"32px", fontWeight:"900", color:"rgba(180,20,20,0.8)", letterSpacing:"4px", marginBottom:"12px", animation:"fadeInUp 0.6s ease 0.5s both", fontFamily:"Georgia, serif" }}>
+          TO BE CONTINUED...
+        </div>
+        <div style={{ fontSize:"12px", fontWeight:"700", color:"#6a6a7a", letterSpacing:"2px", marginBottom:"40px", animation:"fadeInUp 0.6s ease 0.6s both" }}>
+          시즌 2에서 계속
+        </div>
+        <button onClick={() => window.location.reload()} style={{
+          background:"transparent", border:"1px solid rgba(180,20,20,0.6)", color:"rgba(220,80,80,0.9)",
+          fontSize:"13px", letterSpacing:"4px", padding:"14px 48px", cursor:"pointer",
+          fontFamily:"'Noto Sans KR', 'Courier New', monospace", fontWeight:"800", transition:"all 0.3s"
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background="rgba(180,20,20,0.15)"; }}
+        onMouseLeave={e => { e.currentTarget.style.background="transparent"; }}>
+          처음부터 다시
+        </button>
+      </div>
+      <style>{`
+        @keyframes fadeInUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes pulseGlow { 0%,100%{opacity:0.6} 50%{opacity:1} }
+      `}</style>
+    </div>
+  );
+
+  return (
+    <div style={{
+      minHeight:"100vh", background:"#080810", display:"flex", flexDirection:"column",
+      alignItems:"center", justifyContent:"center", padding:"40px 20px",
+      fontFamily:"'Noto Sans KR', 'Courier New', monospace", position:"relative"
+    }}>
+      <div style={{
+        position:"fixed", inset:0,
+        backgroundImage:"repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.1) 3px,rgba(0,0,0,0.1) 4px)",
+        pointerEvents:"none"
+      }}/>
+      <div style={{ position:"relative", maxWidth:"640px", width:"100%", textAlign:"left" }}>
+        <div style={{ minHeight:"380px", marginBottom:"40px" }}>
+          {phase>=1&&<div style={{fontSize:"20px",fontWeight:"900",color:"#f5f2ea",lineHeight:2.4}}>{t1}{phase===1&&!d1&&<Cursor/>}</div>}
+          {phase>=2&&<div style={{fontSize:"20px",fontWeight:"900",color:"#f5f2ea",lineHeight:2.4}}>{t2}{phase===2&&!d2&&<Cursor/>}</div>}
+          {phase>=3&&<div style={{fontSize:"20px",fontWeight:"900",color:"#e6c619",lineHeight:2.4}}>{t3}{phase===3&&!d3&&<Cursor/>}</div>}
+          {phase>=4&&<div style={{fontSize:"15px",fontWeight:"700",color:"#9a9aaa",lineHeight:2.4,marginTop:"16px"}}>{t4}{phase===4&&!d4&&<Cursor/>}</div>}
+          {phase>=5&&<div style={{fontSize:"15px",fontWeight:"700",color:"#9a9aaa",lineHeight:2.4}}>{t5}{phase===5&&!d5&&<Cursor/>}</div>}
+          {phase>=6&&<div style={{fontSize:"15px",fontWeight:"700",color:"#9a9aaa",lineHeight:2.4}}>{t6}{phase===6&&!d6&&<Cursor/>}</div>}
+          {phase>=7&&<div style={{fontSize:"17px",fontWeight:"800",color:"#c0c0d0",lineHeight:2.4,marginTop:"16px"}}>{t7}{phase===7&&!d7&&<Cursor/>}</div>}
+          {phase>=8&&<div style={{fontSize:"17px",fontWeight:"800",color:"#c0c0d0",lineHeight:2.4}}>{t8}{phase===8&&!d8&&<Cursor/>}</div>}
+          {phase>=9&&<div style={{fontSize:"17px",fontWeight:"900",color:"#e6c619",lineHeight:2.4}}>{t9}{phase===9&&!d9&&<Cursor/>}</div>}
+        </div>
+        {phase>=10&&(
+          <div style={{animation:"fadeInUp 0.8s ease"}}>
+            <div style={{fontSize:"13px",fontWeight:"800",color:"#6a6a7a",letterSpacing:"3px",marginBottom:"24px",textAlign:"center"}}>
+              — 선택하라 —
+            </div>
+            <div style={{display:"flex",gap:"16px",flexWrap:"wrap"}}>
+              <button onClick={()=>setChoice("refuse")} style={{
+                flex:1,minWidth:"200px",background:"transparent",
+                border:"1px solid #3abf70",color:"#3abf70",
+                fontSize:"14px",letterSpacing:"2px",padding:"20px 24px",cursor:"pointer",
+                fontFamily:"'Noto Sans KR','Courier New',monospace",fontWeight:"800",
+                transition:"all 0.3s",lineHeight:1.8,textAlign:"center"
+              }}
+              onMouseEnter={e=>{e.currentTarget.style.background="rgba(58,191,112,0.1)";}}
+              onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>
+                거절한다<br/>
+                <span style={{fontSize:"11px",color:"rgba(58,191,112,0.6)",fontWeight:"700"}}>양심을 지킨다</span>
+              </button>
+              <button onClick={()=>setChoice("join")} style={{
+                flex:1,minWidth:"200px",background:"transparent",
+                border:"1px solid rgba(180,20,20,0.7)",color:"rgba(220,80,80,0.9)",
+                fontSize:"14px",letterSpacing:"2px",padding:"20px 24px",cursor:"pointer",
+                fontFamily:"'Noto Sans KR','Courier New',monospace",fontWeight:"800",
+                transition:"all 0.3s",lineHeight:1.8,textAlign:"center"
+              }}
+              onMouseEnter={e=>{e.currentTarget.style.background="rgba(180,20,20,0.1)";}}
+              onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>
+                함께한다<br/>
+                <span style={{fontSize:"11px",color:"rgba(220,80,80,0.5)",fontWeight:"700"}}>새로운 게임의 시작</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      <style>{`
+        @keyframes fadeInUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+      `}</style>
+    </div>
+  );
+}
 
 // ─── TYPEWRITER ───────────────────────────────────────────────────────────────
 function useTypewriter(text, speed = 30, active = true) {
@@ -430,7 +851,7 @@ function AIHint({ ev, onClose }) {
 }
 
 // ─── VERDICT SCREEN ───────────────────────────────────────────────────────────
-function VerdictScreen({ episode, judgments, onNext, isLast }) {
+function VerdictScreen({ episode, judgments, onNext, isLast, nextLabel }) {
   const total = episode.evidence.length;
   const correct = episode.evidence.filter(e => judgments[e.id] === e.answer).length;
   const pct = Math.round((correct / total) * 100);
@@ -500,8 +921,7 @@ function VerdictScreen({ episode, judgments, onNext, isLast }) {
               fontFamily:"'Noto Sans KR', 'Courier New', monospace",
               fontWeight:"900", transition:"all 0.3s"
             }}>
-              최종 판결 수령 →
-            </button>
+              최종 판결 수령 →            </button>
           )}
         </div>
       </div>
@@ -753,9 +1173,12 @@ function EndingScreen({ totalCorrect, totalQuestions }) {
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [screen, setScreen] = useState("intro"); // intro | investigation | verdict | ending
+  const [screen, setScreen] = useState("intro"); // intro | investigation | verdict | finalIntro | finalInvestigation | finalVerdict | twist | ending
   const [epIdx, setEpIdx] = useState(0);
   const [allJudgments, setAllJudgments] = useState({});
+  const [finalJudgments, setFinalJudgments] = useState({});
+  const [finalRevealed, setFinalRevealed] = useState({});
+  const [finalHint, setFinalHint] = useState(null);
 
   const episode = EPISODES[epIdx];
 
@@ -769,7 +1192,8 @@ export default function App() {
       setEpIdx(i => i + 1);
       setScreen("intro");
     } else {
-      setScreen("ending");
+      // 7화 끝 → 최종화 인트로
+      setScreen("finalIntro");
     }
   };
 
@@ -793,6 +1217,167 @@ export default function App() {
       acc + ep.evidence.filter(e => allJudgments[e.id] === e.answer).length, 0);
     return <EndingScreen totalCorrect={correct} totalQuestions={total} />;
   }
+
+  // ─── 최종화 화면들 ───────────────────────────────────────────────────────────
+  if (screen === "finalIntro") {
+    return <CinematicIntro episode={FINAL_EPISODE} onStart={() => setScreen("finalInvestigation")} />;
+  }
+
+  const finalAllJudged = FINAL_EPISODE.evidence.every(e => finalJudgments[e.id] !== undefined);
+  const finalAllRevealed = FINAL_EPISODE.evidence.every(e => finalRevealed[e.id]);
+
+  if (screen === "finalVerdict") {
+    return (
+      <VerdictScreen
+        episode={FINAL_EPISODE}
+        judgments={finalJudgments}
+        isLast={true}
+        onNext={() => setScreen("twist")}
+        nextLabel="다음 →"
+      />
+    );
+  }
+
+  if (screen === "twist") {
+    return <TwistEndingScreen />;
+  }
+
+  if (screen === "finalInvestigation") {
+    return (
+      <div style={{
+        minHeight:"100vh", background:"#080810",
+        fontFamily:"'Noto Sans KR', 'Courier New', monospace", position:"relative"
+      }}>
+        <div style={{
+          position:"fixed", inset:0,
+          backgroundImage:"repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.08) 3px,rgba(0,0,0,0.08) 4px)",
+          pointerEvents:"none", zIndex:0
+        }}/>
+        <div style={{ position:"relative", zIndex:1, maxWidth:"720px", margin:"0 auto", padding:"40px 20px" }}>
+          <div style={{ borderBottom:"1px solid rgba(180,20,20,0.5)", paddingBottom:"20px", marginBottom:"32px" }}>
+            <div style={{ fontSize:"11px", fontWeight:"800", color:"rgba(220,80,80,0.9)", letterSpacing:"4px", marginBottom:"8px" }}>{FINAL_EPISODE.subtitle}</div>
+            <div style={{ fontSize:"30px", fontWeight:"900", color:"#f5f2ea", fontFamily:"Georgia,serif" }}>{FINAL_EPISODE.title}</div>
+            <div style={{ marginTop:"12px", fontSize:"13px", fontWeight:"800", color:"#b0b0c0" }}>
+              증거 파일 {FINAL_EPISODE.evidence.length}건 — 모든 덫을 찾아내라
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:"8px", marginBottom:"32px", alignItems:"center" }}>
+            <span style={{ fontSize:"12px", fontWeight:"800", color:"#b0b0c0", letterSpacing:"2px" }}>진행</span>
+            {FINAL_EPISODE.evidence.map(e => (
+              <div key={e.id} style={{
+                width:"24px", height:"4px",
+                background: finalJudgments[e.id]
+                  ? (finalJudgments[e.id]===e.answer?"#2a9d5c":"rgba(220,80,80,0.8)")
+                  : "rgba(255,255,255,0.1)",
+                transition:"background 0.4s"
+              }}/>
+            ))}
+            <span style={{ fontSize:"12px", fontWeight:"800", color:"#b0b0c0", marginLeft:"4px" }}>
+              {Object.keys(finalJudgments).length}/{FINAL_EPISODE.evidence.length}
+            </span>
+          </div>
+          {FINAL_EPISODE.evidence.map((ev, i) => {
+            const userChoice = finalJudgments[ev.id];
+            const isJudged = userChoice !== undefined;
+            const isRevealed = finalRevealed[ev.id];
+            const isCorrect = userChoice === ev.answer;
+            const choiceLabel = {"보전":"✓ 보전","위법":"✗ 위법·미보전","부분보전":"△ 부분보전"};
+            const choiceColor = {"보전":"#2a9d5c","위법":"#e6c619","부분보전":"#f0a030"};
+            const borderColor = !isJudged ? "rgba(255,255,255,0.1)" : !isRevealed ? choiceColor[userChoice] : isCorrect ? "#2a9d5c" : "rgba(220,80,80,0.8)";
+            return (
+              <div key={ev.id} style={{
+                background:"#0f0f1a", border:`1px solid ${borderColor}`,
+                marginBottom:"20px", transition:"border-color 0.4s",
+                animation:`slideIn 0.4s ease ${i*0.08}s both`
+              }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 20px", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
+                  <div style={{ display:"flex", gap:"12px", alignItems:"center" }}>
+                    <span style={{ fontSize:"11px", fontWeight:"800", color:"rgba(220,80,80,0.9)", border:"1px solid rgba(220,80,80,0.4)", padding:"3px 8px", letterSpacing:"1px" }}>{ev.id}</span>
+                    <span style={{ fontSize:"12px", fontWeight:"700", color:"#b0b0c0", letterSpacing:"2px" }}>{ev.type.toUpperCase()}</span>
+                  </div>
+                  {isJudged && <span style={{ fontSize:"12px", color:choiceColor[userChoice], letterSpacing:"2px", fontWeight:"900" }}>내 판단: {choiceLabel[userChoice]}</span>}
+                </div>
+                <div style={{ padding:"20px" }}>
+                  <div style={{ fontSize:"17px", fontWeight:"800", color:"#f5f2ea", marginBottom:"12px", fontFamily:"Georgia,serif" }}>{ev.title}</div>
+                  <div style={{ fontSize:"14px", fontWeight:"700", color:"#c0c0d0", lineHeight:1.8, whiteSpace:"pre-line", marginBottom:"16px", fontFamily:"'Noto Sans KR',sans-serif" }}>{ev.content}</div>
+                  <div style={{ display:"inline-block", fontSize:"13px", color:"#f0a030", fontWeight:"800", border:"1px solid rgba(240,160,48,0.3)", padding:"4px 12px" }}>청구금액: {ev.amount}</div>
+                  {!isJudged && (
+                    <div style={{ display:"flex", gap:"10px", marginTop:"20px", flexWrap:"wrap" }}>
+                      {["보전","부분보전","위법"].map(opt => {
+                        const c = opt==="보전"?"#2a9d5c":opt==="위법"?"#e6c619":"#f0a030";
+                        return (
+                          <button key={opt} onClick={() => setFinalJudgments(p => ({...p,[ev.id]:opt}))} style={{
+                            background:"transparent", border:`1px solid ${c}`, color:c,
+                            fontSize:"12px", letterSpacing:"2px", padding:"10px 20px", cursor:"pointer",
+                            fontFamily:"'Noto Sans KR','Courier New',monospace", fontWeight:"800", transition:"all 0.2s"
+                          }}
+                          onMouseEnter={e=>{e.target.style.background=c;e.target.style.color="#080810";}}
+                          onMouseLeave={e=>{e.target.style.background="transparent";e.target.style.color=c;}}>
+                            {opt==="보전"?"✓ 보전":opt==="위법"?"✗ 위법·미보전":"△ 부분보전"}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {isJudged && !isRevealed && (
+                    <div style={{ display:"flex", gap:"12px", marginTop:"16px", flexWrap:"wrap" }}>
+                      <button onClick={() => setFinalRevealed(p => ({...p,[ev.id]:true}))} style={{
+                        background:"transparent", border:"1px solid rgba(255,255,255,0.2)", color:"#d4cfbf",
+                        fontSize:"11px", letterSpacing:"3px", padding:"10px 24px", cursor:"pointer",
+                        fontFamily:"'Noto Sans KR','Courier New',monospace", fontWeight:"800"
+                      }}>판결 확인</button>
+                      <button onClick={() => setFinalHint(ev)} style={{
+                        background:"transparent", border:"1px solid rgba(220,80,80,0.3)", color:"rgba(220,80,80,0.7)",
+                        fontSize:"11px", letterSpacing:"2px", padding:"10px 20px", cursor:"pointer",
+                        fontFamily:"'Noto Sans KR','Courier New',monospace", fontWeight:"800"
+                      }}>AI 법령 분석</button>
+                    </div>
+                  )}
+                  {isJudged && isRevealed && (
+                    <div style={{
+                      marginTop:"16px", padding:"16px",
+                      background:isCorrect?"rgba(42,157,92,0.08)":"rgba(220,80,80,0.06)",
+                      border:`1px solid ${isCorrect?"#2a9d5c":"rgba(220,80,80,0.5)"}33`,
+                      animation:"fadeIn 0.4s ease"
+                    }}>
+                      {isCorrect
+                        ? <div style={{fontSize:"15px",fontWeight:"900",color:"#3abf70",marginBottom:"10px",letterSpacing:"2px"}}>✓ 정답</div>
+                        : <div style={{fontSize:"14px",fontWeight:"800",color:"#e6c619",marginBottom:"10px"}}>⚠ 오답 — 정답: {choiceLabel[ev.answer]}</div>
+                      }
+                      <div style={{fontSize:"14px",fontWeight:"700",color:"#dedad2",lineHeight:1.8,fontFamily:"'Noto Sans KR',sans-serif"}}>{ev.explanation}</div>
+                      <div style={{marginTop:"10px",fontSize:"12px",fontWeight:"700",color:"#b0b0c0",letterSpacing:"1px"}}>📋 {ev.law}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {finalAllJudged && finalAllRevealed && (
+            <div style={{textAlign:"center",marginTop:"32px",animation:"fadeIn 0.5s ease"}}>
+              <button onClick={() => setScreen("finalVerdict")} style={{
+                background:"rgba(180,20,20,0.8)", border:"none", color:"#f5f2ea",
+                fontSize:"13px", letterSpacing:"4px", padding:"16px 56px", cursor:"pointer",
+                fontFamily:"'Noto Sans KR','Courier New',monospace", fontWeight:"900"
+              }}>
+                최종 판결 →
+              </button>
+            </div>
+          )}
+        </div>
+        {finalHint && (
+          <div style={{ position:"fixed", inset:0, background:"rgba(6,6,9,0.9)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:100, padding:"20px" }}>
+            <AIHint ev={finalHint} onClose={() => setFinalHint(null)} />
+          </div>
+        )}
+        <style>{`
+          @keyframes slideIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+          @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+          @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+        `}</style>
+      </div>
+    );
+  }
+
 
   if (screen === "intro") {
     return <CinematicIntro episode={episode} onStart={() => setScreen("investigation")} />;
