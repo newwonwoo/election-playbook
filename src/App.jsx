@@ -1609,7 +1609,7 @@ export default function App() {
     return <HandoutScreen onBack={() => setScreen("home")} />;
   }
 
-
+  if (screen === "ending") {
     const total = EPISODES.reduce((acc, ep) => acc + ep.evidence.length, 0);
     const correct = EPISODES.reduce((acc, ep) =>
       acc + ep.evidence.filter(e => allJudgments[e.id] === e.answer).length, 0);
