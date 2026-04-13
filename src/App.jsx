@@ -536,6 +536,372 @@ function TwistEndingScreen() {
   );
 }
 
+// ─── HANDOUT DATA ─────────────────────────────────────────────────────────────
+const HANDOUTS = [
+  {
+    ep: 1, title: "현수막",
+    theme: "현수막 제작·설치·게시 관련 보전기준",
+    keyRules: [
+      { rule: "예비후보→후보자 계속 사용", judge: "부분보전", memo: "전체 게시일 중 선거운동기간만 일할 계산" },
+      { rule: "양면 현수막", judge: "단면 기준", memo: "2면이어도 1장으로 보아 단면 통상가격 적용" },
+      { rule: "자연재해로 인한 현수막 교체", judge: "보전", memo: "기존+재제작 비용 모두 선거비용" },
+      { rule: "현수막 조명시설 설치비", judge: "위법", memo: "선거비용외 정치자금, 미보전" },
+      { rule: "선거사무소 내부 현수막", judge: "위법", memo: "외부만 보전, 내부는 미보전" },
+      { rule: "개소식 백드롭·기자회견 현수막", judge: "위법", memo: "선거비용외 정치자금" },
+    ],
+    point: "현수막은 '외부·선거운동기간·실제사용' 세 가지 조건 모두 충족해야 보전",
+    law: "공직선거법 제61조, 제67조"
+  },
+  {
+    ep: 2, title: "소품",
+    theme: "선거운동용 윗옷·소품 보전기준",
+    keyRules: [
+      { rule: "윗옷 한도 초과 (6만원 초과)", judge: "위법", memo: "위법비용 전액 미보전, 인쇄비만 별도 보전 가능" },
+      { rule: "선거 후 자산가치 있는 고가 소품", judge: "위법", memo: "일시적 사용·소비 목적만 보전" },
+      { rule: "자원봉사자 소품 제작", judge: "위법", memo: "선거사무관계자 외 제공 시 위법비용" },
+      { rule: "기호 없는 단순 방역 마스크", judge: "위법", memo: "기호 등 새겨 선거운동 소품으로 사용한 경우만 보전" },
+      { rule: "형광·특수재질 소품", judge: "보전", memo: "특수재질 입증 시 통상거래가격 범위 내 별도 보전" },
+    ],
+    point: "소품은 ① 6만원 이하 ② 선거사무관계자 대상 ③ 선거 후 자산가치 없을 것",
+    law: "공직선거법 제68조"
+  },
+  {
+    ep: 3, title: "차량",
+    theme: "공개장소 연설·대담차량 보전기준",
+    keyRules: [
+      { rule: "자기소유 차량 임차비 청구", judge: "위법", memo: "선거비용 계상은 가능하나 보전대상 아님" },
+      { rule: "계약 파기 위약금", judge: "위법", memo: "선거비용외 정치자금" },
+      { rule: "고장 후 대체 차량 — 1일 2대", judge: "부분보전", memo: "1일 1대분만 보전, 철거비 추가 임차는 미보전" },
+      { rule: "탁송비·회수비", judge: "위법", memo: "선거비용외 정치자금" },
+      { rule: "선거운동기간 전 임차 기간", judge: "부분보전", memo: "선거운동기간 해당분만 일할 계산" },
+      { rule: "기사 숙박비·식대 별도 지급", judge: "위법", memo: "인부임 외 별도 지급 불가, 위법비용" },
+    ],
+    point: "차량은 선거운동기간 중 실제 운행한 1대분의 임차비만 보전",
+    law: "공직선거법 제79조"
+  },
+  {
+    ep: 4, title: "수당",
+    theme: "선거사무관계자 수당·실비 보전기준",
+    keyRules: [
+      { rule: "계좌이체 후 서명 생략", judge: "위법", memo: "계좌이체해도 반드시 서명·날인 징구" },
+      { rule: "차량기사 숙박비 별도 지급", judge: "위법", memo: "인부임 외 숙박비·식대 지급 불가" },
+      { rule: "국회의원 보좌관 수당 지급", judge: "위법", memo: "보좌관은 실비만 지급 가능, 수당 불가" },
+      { rule: "율동 강사 인건비", judge: "위법", memo: "선거운동 준비행위 비용 = 선거비용외 정치자금" },
+      { rule: "선거사무원·기사 겸임 시", judge: "보전", memo: "수당·인부임 중 큰 금액으로 지급 가능" },
+    ],
+    point: "수당은 법정 한도 내 + 지급명세서 서명 필수 + 위법 신분에게 지급 금지",
+    law: "공직선거법 제62조, 제135조"
+  },
+  {
+    ep: 5, title: "디지털광고",
+    theme: "전화·문자·인터넷 광고 보전기준",
+    keyRules: [
+      { rule: "유튜브 영상 제작비", judge: "위법", memo: "인터넷홈페이지 = 미보전대상 선거비용" },
+      { rule: "미사용 인터넷 광고 도안", judge: "위법", memo: "실제 사용된 도안만 보전" },
+      { rule: "자동걸기(오토다이얼) 이용", judge: "위법", memo: "컴퓨터 이용 자동 송신장치 = 위법" },
+      { rule: "개인통장 문자발송비", judge: "위법", memo: "신고 예금계좌 외 지출 불가" },
+      { rule: "카카오톡 채널 유료서비스", judge: "보전", memo: "전자우편 전송대행 해당, 선거운동기간 분 보전" },
+      { rule: "선거운동기간 인터넷전화 통화료", judge: "보전", memo: "후보자·배우자·선거사무장 등 사용분만 보전" },
+    ],
+    point: "인터넷홈페이지·유튜브·블로그 게시 목적 비용은 전면 미보전",
+    law: "공직선거법 제59조, 제82조의7"
+  },
+  {
+    ep: 6, title: "개소식·사무소",
+    theme: "선거사무소 개소식·운영비 보전기준",
+    keyRules: [
+      { rule: "개소식 앰프·다과·비품 구입", judge: "위법", memo: "개소식 비용 전체 선거비용외 정치자금" },
+      { rule: "기자회견 백드롭", judge: "위법", memo: "선거운동 방법 아님 = 미보전" },
+      { rule: "사무소 내부 현수막", judge: "위법", memo: "외벽·외부만 보전" },
+      { rule: "현수막 게시로 인한 손해배상", judge: "위법", memo: "통상 손해배상 = 선거비용외 정치자금" },
+      { rule: "사무소 관리비 초과분", judge: "부분보전", memo: "기존 납부액 초과분만 선거비용" },
+    ],
+    point: "개소식·사무소 관련 비용은 대부분 선거비용外 — 현수막 외부게시만 예외",
+    law: "공직선거법 제61조"
+  },
+  {
+    ep: 7, title: "증빙서류",
+    theme: "증빙자료 제출 및 특수 항목 보전기준",
+    keyRules: [
+      { rule: "사진 증빙 미첨부", judge: "위법", memo: "현장 사용 사진 미제출 시 해당 항목 전체 미보전" },
+      { rule: "선거운동기간 메이크업비", judge: "위법", memo: "방송연설 분장비만 예외 보전" },
+      { rule: "예비후보 시절 로고송 선금", judge: "보전", memo: "예비후보 때 지출해도 선거운동용이면 보전" },
+      { rule: "인터넷홈페이지 동영상", judge: "위법", memo: "홈페이지 게시용 = 미보전" },
+      { rule: "선거공보 제출 후 정정비", judge: "위법", memo: "제출 전 정정은 보전, 제출 후는 미보전" },
+    ],
+    point: "증빙 = 사진+영수증+서명 3종 세트. 하나라도 빠지면 전액 미보전",
+    law: "공직선거관리규칙 제51조의3"
+  },
+  {
+    ep: 8, title: "최종화 종합",
+    theme: "혼합 케이스 핵심 판단기준 총정리",
+    keyRules: [
+      { rule: "AI 딥페이크 합성 영상", judge: "위법", memo: "실제와 구분 어려운 가상 영상 = 명시적 금지" },
+      { rule: "컨설팅비+도안비 혼합 청구", judge: "부분보전", memo: "선거운동 직접 관련분만 분리 보전" },
+      { rule: "선거운동기간 전 임차 일할계산", judge: "부분보전", memo: "항상 기간 비례 계산" },
+      { rule: "선거공보 제출 전·후 정정", judge: "부분보전", memo: "제출 전=보전, 제출 후=미보전" },
+      { rule: "로고송 저작권 대행+부가세", judge: "보전", memo: "총괄 세금계산서 전액 보전" },
+      { rule: "무상 대여 차량 임차비 청구", judge: "위법", memo: "실제 지출 없는 허위청구 = 미보전" },
+    ],
+    point: "복합 케이스는 항목별로 분리 → 각각 보전·미보전 판단 후 합산",
+    law: "공직선거법 전반"
+  },
+];
+
+// ─── HOME SCREEN ───────────────────────────────────────────────────────────────
+function HomeScreen({ onStart, onChapterSelect, onHandout }) {
+  const [phase, setPhase] = useState(0);
+  useEffect(() => { setTimeout(() => setPhase(1), 300); }, []);
+
+  return (
+    <div style={{
+      minHeight:"100vh", background:"#080810", display:"flex", flexDirection:"column",
+      alignItems:"center", justifyContent:"center", padding:"40px 20px",
+      fontFamily:"'Noto Sans KR', 'Courier New', monospace", position:"relative", overflow:"hidden"
+    }}>
+      <div style={{
+        position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)",
+        width:"700px", height:"700px",
+        background:"radial-gradient(ellipse, rgba(230,198,25,0.05) 0%, transparent 65%)",
+        pointerEvents:"none"
+      }}/>
+      <div style={{
+        position:"absolute", inset:0,
+        backgroundImage:"repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.1) 3px,rgba(0,0,0,0.1) 4px)",
+        pointerEvents:"none"
+      }}/>
+
+      <div style={{ position:"relative", maxWidth:"560px", width:"100%", textAlign:"center",
+        opacity: phase ? 1 : 0, transition:"opacity 0.8s", transform: phase ? "none" : "translateY(20px)"
+      }}>
+        <div style={{ fontSize:"10px", fontWeight:"800", color:"#e6c619", letterSpacing:"5px", marginBottom:"24px" }}>
+          중앙선거관리위원회
+        </div>
+        <div style={{
+          fontSize: window.innerWidth < 480 ? "32px" : "48px",
+          fontWeight:"900", color:"#f5f2ea", fontFamily:"Georgia, serif",
+          lineHeight:1.2, marginBottom:"12px",
+          textShadow:"0 0 60px rgba(230,198,25,0.2)"
+        }}>
+          선거비용<br/>수사관
+        </div>
+        <div style={{ fontSize:"13px", fontWeight:"700", color:"#6a6a7a", letterSpacing:"3px", marginBottom:"48px" }}>
+          ELECTION COST INVESTIGATOR
+        </div>
+
+        <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
+          <button onClick={onStart} style={{
+            background:"#e6c619", border:"none", color:"#080810",
+            fontSize:"14px", letterSpacing:"4px", padding:"18px 40px",
+            cursor:"pointer", fontFamily:"'Noto Sans KR', 'Courier New', monospace",
+            fontWeight:"900", transition:"all 0.2s", width:"100%"
+          }}
+          onMouseEnter={e => { e.target.style.opacity="0.85"; }}
+          onMouseLeave={e => { e.target.style.opacity="1"; }}>
+            ▶ 처음부터 시작
+          </button>
+
+          <button onClick={onChapterSelect} style={{
+            background:"transparent", border:"1px solid rgba(230,198,25,0.5)", color:"#e6c619",
+            fontSize:"13px", letterSpacing:"3px", padding:"16px 40px",
+            cursor:"pointer", fontFamily:"'Noto Sans KR', 'Courier New', monospace",
+            fontWeight:"800", transition:"all 0.2s", width:"100%"
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background="rgba(230,198,25,0.08)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background="transparent"; }}>
+            ≡ 챕터 선택
+          </button>
+
+          <button onClick={onHandout} style={{
+            background:"transparent", border:"1px solid rgba(255,255,255,0.15)", color:"#b0b0c0",
+            fontSize:"13px", letterSpacing:"3px", padding:"16px 40px",
+            cursor:"pointer", fontFamily:"'Noto Sans KR', 'Courier New', monospace",
+            fontWeight:"800", transition:"all 0.2s", width:"100%"
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background="rgba(255,255,255,0.05)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background="transparent"; }}>
+            📋 핵심정리 핸드아웃
+          </button>
+        </div>
+
+        <div style={{ marginTop:"40px", fontSize:"11px", fontWeight:"700", color:"#3a3a4a", letterSpacing:"1px" }}>
+          총 8화 + Final · 38케이스 · 두 가지 엔딩
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── CHAPTER SELECT ────────────────────────────────────────────────────────────
+function ChapterSelectScreen({ onSelect, onBack }) {
+  const allEps = [
+    ...EPISODES,
+    { id:8, title:"아직 끝나지 않았다", subtitle:"FINAL CHAPTER", evidence: FINAL_EPISODE.evidence }
+  ];
+
+  return (
+    <div style={{
+      minHeight:"100vh", background:"#080810",
+      fontFamily:"'Noto Sans KR', 'Courier New', monospace", padding:"40px 20px"
+    }}>
+      <div style={{ maxWidth:"600px", margin:"0 auto" }}>
+        <button onClick={onBack} style={{
+          background:"transparent", border:"none", color:"#6a6a7a",
+          fontSize:"12px", letterSpacing:"2px", padding:"0 0 32px",
+          cursor:"pointer", fontFamily:"'Noto Sans KR', 'Courier New', monospace", fontWeight:"700"
+        }}>← 돌아가기</button>
+
+        <div style={{ fontSize:"11px", fontWeight:"800", color:"#e6c619", letterSpacing:"4px", marginBottom:"8px" }}>
+          챕터 선택
+        </div>
+        <div style={{ fontSize:"22px", fontWeight:"900", color:"#f5f2ea", fontFamily:"Georgia,serif", marginBottom:"32px" }}>
+          어디서부터 시작할까?
+        </div>
+
+        <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
+          {allEps.map((ep, i) => {
+            const isFinal = ep.id === 8;
+            return (
+              <button key={ep.id}
+                onClick={() => onSelect(i, isFinal)}
+                style={{
+                  background:"#0f0f1a", border:"1px solid rgba(255,255,255,0.08)",
+                  color:"#f5f2ea", padding:"18px 24px", cursor:"pointer",
+                  fontFamily:"'Noto Sans KR', 'Courier New', monospace",
+                  textAlign:"left", transition:"all 0.2s", display:"flex",
+                  justifyContent:"space-between", alignItems:"center"
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor=isFinal?"rgba(180,20,20,0.6)":"rgba(230,198,25,0.4)"; e.currentTarget.style.background="rgba(255,255,255,0.03)"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor="rgba(255,255,255,0.08)"; e.currentTarget.style.background="#0f0f1a"; }}
+              >
+                <div>
+                  <div style={{ fontSize:"10px", fontWeight:"800", color: isFinal ? "rgba(220,80,80,0.9)" : "#e6c619", letterSpacing:"3px", marginBottom:"6px" }}>
+                    {isFinal ? "FINAL CHAPTER" : `EPISODE ${String(ep.id).padStart(2,"0")}`}
+                  </div>
+                  <div style={{ fontSize:"15px", fontWeight:"800", color:"#f5f2ea" }}>
+                    {ep.title}
+                  </div>
+                </div>
+                <div style={{ fontSize:"11px", fontWeight:"700", color:"#6a6a7a", whiteSpace:"nowrap", marginLeft:"16px" }}>
+                  {ep.evidence.length}케이스 →
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── HANDOUT SCREEN ────────────────────────────────────────────────────────────
+function HandoutScreen({ onBack }) {
+  const [activeEp, setActiveEp] = useState(0);
+  const h = HANDOUTS[activeEp];
+  const judgeColor = { "보전":"#2a9d5c", "위법":"rgba(220,80,80,0.9)", "부분보전":"#f0a030", "단면 기준":"#b0b0c0" };
+
+  return (
+    <div style={{
+      minHeight:"100vh", background:"#080810",
+      fontFamily:"'Noto Sans KR', 'Courier New', monospace"
+    }}>
+      {/* 고정 헤더 */}
+      <div style={{
+        position:"sticky", top:0, background:"#080810",
+        borderBottom:"1px solid rgba(255,255,255,0.08)", zIndex:10, padding:"16px 20px"
+      }}>
+        <div style={{ maxWidth:"720px", margin:"0 auto", display:"flex", alignItems:"center", gap:"16px" }}>
+          <button onClick={onBack} style={{
+            background:"transparent", border:"none", color:"#6a6a7a",
+            fontSize:"12px", letterSpacing:"2px", cursor:"pointer",
+            fontFamily:"'Noto Sans KR', 'Courier New', monospace", fontWeight:"700", whiteSpace:"nowrap"
+          }}>← 나가기</button>
+          <div style={{ fontSize:"11px", fontWeight:"800", color:"#e6c619", letterSpacing:"3px" }}>
+            핵심정리 핸드아웃
+          </div>
+        </div>
+
+        {/* 챕터 탭 */}
+        <div style={{ maxWidth:"720px", margin:"12px auto 0", display:"flex", gap:"6px", flexWrap:"wrap" }}>
+          {HANDOUTS.map((hd, i) => (
+            <button key={i} onClick={() => setActiveEp(i)} style={{
+              background: activeEp===i ? "#e6c619" : "transparent",
+              border: `1px solid ${activeEp===i ? "#e6c619" : "rgba(255,255,255,0.12)"}`,
+              color: activeEp===i ? "#080810" : "#9a9aaa",
+              fontSize:"11px", letterSpacing:"1px", padding:"6px 12px",
+              cursor:"pointer", fontFamily:"'Noto Sans KR', 'Courier New', monospace",
+              fontWeight:"800", transition:"all 0.15s"
+            }}>
+              {hd.ep === 8 ? "Final" : `${hd.ep}화`} {hd.title}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 본문 */}
+      <div style={{ maxWidth:"720px", margin:"0 auto", padding:"32px 20px" }}>
+        {/* 챕터 헤더 */}
+        <div style={{ marginBottom:"28px" }}>
+          <div style={{ fontSize:"11px", fontWeight:"800", color:"#e6c619", letterSpacing:"3px", marginBottom:"8px" }}>
+            {h.ep === 8 ? "FINAL CHAPTER" : `EPISODE ${String(h.ep).padStart(2,"0")}`} — {h.title}
+          </div>
+          <div style={{ fontSize:"22px", fontWeight:"900", color:"#f5f2ea", fontFamily:"Georgia,serif", marginBottom:"6px" }}>
+            {h.theme}
+          </div>
+          <div style={{ fontSize:"12px", fontWeight:"700", color:"#6a6a7a", letterSpacing:"1px" }}>
+            📋 {h.law}
+          </div>
+        </div>
+
+        {/* 핵심 판단표 */}
+        <div style={{ marginBottom:"28px" }}>
+          <div style={{ fontSize:"11px", fontWeight:"800", color:"#b0b0c0", letterSpacing:"3px", marginBottom:"14px" }}>
+            판단 기준표
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+            {h.keyRules.map((r, i) => (
+              <div key={i} style={{
+                background:"#0f0f1a", border:"1px solid rgba(255,255,255,0.07)",
+                padding:"14px 18px", display:"flex", gap:"12px", alignItems:"flex-start"
+              }}>
+                <div style={{
+                  minWidth:"80px", fontSize:"11px", fontWeight:"800",
+                  color: judgeColor[r.judge] || "#b0b0c0",
+                  border:`1px solid ${judgeColor[r.judge] || "#b0b0c0"}44`,
+                  padding:"3px 8px", textAlign:"center", letterSpacing:"1px"
+                }}>
+                  {r.judge}
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:"14px", fontWeight:"800", color:"#f5f2ea", marginBottom:"4px" }}>
+                    {r.rule}
+                  </div>
+                  <div style={{ fontSize:"12px", fontWeight:"700", color:"#8a8a9a", lineHeight:1.6 }}>
+                    {r.memo}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 이것만 기억해 */}
+        <div style={{
+          border:"1px solid rgba(230,198,25,0.4)", background:"rgba(230,198,25,0.04)",
+          padding:"24px"
+        }}>
+          <div style={{ fontSize:"10px", fontWeight:"800", color:"#e6c619", letterSpacing:"4px", marginBottom:"12px" }}>
+            이것만 기억해
+          </div>
+          <div style={{ fontSize:"15px", fontWeight:"800", color:"#f5f2ea", lineHeight:1.8 }}>
+            {h.point}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── TYPEWRITER ───────────────────────────────────────────────────────────────
 function useTypewriter(text, speed = 30, active = true) {
   const [displayed, setDisplayed] = useState("");
@@ -1173,7 +1539,7 @@ function EndingScreen({ totalCorrect, totalQuestions }) {
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [screen, setScreen] = useState("intro"); // intro | investigation | verdict | finalIntro | finalInvestigation | finalVerdict | twist | ending
+  const [screen, setScreen] = useState("home"); // home | chapterSelect | handout | intro | investigation | verdict | finalIntro | finalInvestigation | finalVerdict | twist | ending
   const [epIdx, setEpIdx] = useState(0);
   const [allJudgments, setAllJudgments] = useState({});
   const [finalJudgments, setFinalJudgments] = useState({});
@@ -1211,7 +1577,39 @@ export default function App() {
   const allJudged = episode.evidence.every(e => epJudgments[e.id] !== undefined);
   const allRevealedLocal = episode.evidence.every(e => epRevealed[e.id]);
 
-  if (screen === "ending") {
+  if (screen === "home") {
+    return (
+      <HomeScreen
+        onStart={() => { setEpIdx(0); setScreen("intro"); }}
+        onChapterSelect={() => setScreen("chapterSelect")}
+        onHandout={() => setScreen("handout")}
+      />
+    );
+  }
+
+  if (screen === "chapterSelect") {
+    return (
+      <ChapterSelectScreen
+        onBack={() => setScreen("home")}
+        onSelect={(idx, isFinal) => {
+          if (isFinal) {
+            setScreen("finalIntro");
+          } else {
+            setEpIdx(idx);
+            setEpJudgments({});
+            setEpRevealed({});
+            setScreen("intro");
+          }
+        }}
+      />
+    );
+  }
+
+  if (screen === "handout") {
+    return <HandoutScreen onBack={() => setScreen("home")} />;
+  }
+
+
     const total = EPISODES.reduce((acc, ep) => acc + ep.evidence.length, 0);
     const correct = EPISODES.reduce((acc, ep) =>
       acc + ep.evidence.filter(e => allJudgments[e.id] === e.answer).length, 0);
