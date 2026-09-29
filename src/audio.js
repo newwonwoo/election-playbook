@@ -47,7 +47,10 @@ export class Sfx {
     s.connect(f); f.connect(g); g.connect(this.master); s.start(t, Math.random()); s.stop(t + dur + 0.05);
   }
   shoot() { this.tone('square', 1400, 500, 0.07, 0.05); this.noiseHit(5000, 0.05, 0.05, 'highpass'); }
-  hit() { this.tone('sine', 190, 55, 0.14, 0.7); this.noiseHit(3000, 0.1, 0.35); this.tone('square', 900, 300, 0.05, 0.06); }
+  hit(crit) {
+    if (crit) { this.tone('sine', 200, 50, 0.2, 0.8); this.noiseHit(3500, 0.16, 0.5); this.tone('square', 1300, 400, 0.08, 0.1); return; }
+    this.tone('sine', 240, 80, 0.08, 0.35); this.noiseHit(4000, 0.06, 0.18);
+  }
   kill() { this.tone('sine', 120, 30, 0.5, 0.9); this.noiseHit(2500, 0.6, 0.7); this.noiseHit(8000, 0.2, 0.25, 'highpass'); this.tone('sawtooth', 600, 80, 0.3, 0.12); }
   ring(streak, gold) {
     const base = 660 * Math.pow(2, Math.min(streak, 12) / 12);
@@ -61,5 +64,5 @@ export class Sfx {
   smash() { this.noiseHit(2200, 0.35, 0.6); this.tone('sine', 140, 45, 0.25, 0.6); }
   hurt() { this.tone('square', 220, 90, 0.25, 0.25); this.noiseHit(1500, 0.3, 0.5); }
   arch() { [0, 4, 7, 12].forEach((s, i) => this.tone('triangle', 523 * Math.pow(2, s / 12), 523 * Math.pow(2, s / 12), 0.2, 0.15, i * 0.05)); }
-  lock() { this.tone('sine', 1800, 1800, 0.04, 0.06); }
+  lock() { this.tone('square', 1500, 1500, 0.05, 0.08); this.tone('square', 2000, 2000, 0.07, 0.08, 0.07); }
 }

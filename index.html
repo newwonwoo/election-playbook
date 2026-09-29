@@ -18,7 +18,23 @@
       #score { font-size: 42px; font-weight: 700; letter-spacing: 1px; line-height: 1; }
       #combo { font-size: 22px; font-weight: 700; color: #ffe066; margin-top: 4px; min-height: 26px; transition: transform .08s; }
       #combo.bump { transform: scale(1.35); }
-      #streak { font-size: 16px; color: #aef9ff; }
+            #wave { font-size: 18px; font-weight: 700; color: #aef9ff; }
+      #tc { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); text-align: center; width: min(420px, 60vw); }
+      #timer { font-size: 44px; font-weight: 700; line-height: 1; font-style: italic; }
+      #timer.warn { color: #ff6b6b; animation: pulse .5s infinite alternate; }
+      @keyframes pulse { to { transform: scale(1.12); } }
+      #tname { font-size: 15px; margin-top: 6px; }
+      #thp > i { background: linear-gradient(90deg, #ffb13b, #ff4d4d); }
+      #tbar { transition: opacity .3s; }
+      #cross { left: 50%; top: 50%; }
+      #lock.locked { border-color: #ff5a5a; box-shadow: 0 0 14px #ff5a5a, inset 0 0 14px #ff5a5a; }
+      #lock.locked::before, #lock.locked::after { background: #ff5a5a; }
+      #lockTxt { position: absolute; transform: translate(-50%, 0); font-size: 16px; font-weight: 700; color: #ff5a5a; letter-spacing: 2px; display: none; }
+      #arrow { position: absolute; font-size: 34px; color: #ff5a5a; display: none; text-shadow: 0 0 8px rgba(255,90,90,.8); }
+      #banner { position: absolute; left: 50%; top: 32%; transform: translate(-50%, -50%) scale(.6); font-family: 'Black Han Sans', sans-serif; font-size: clamp(28px, 6vw, 56px); opacity: 0; white-space: nowrap; transition: opacity .2s, transform .2s; }
+      #banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      .popup.dmg { font-size: 18px; color: #ffe066; }
+      .popup.time { color: #7dff9a; font-size: 30px; }
       #tr { position: absolute; right: 20px; top: 16px; text-align: right; font-size: 18px; font-weight: 700; }
       #bottom { position: absolute; left: 20px; bottom: 20px; width: min(340px, 55vw); }
       #speedWrap { margin-bottom: 4px; }
@@ -67,11 +83,17 @@
   <body>
     <div id="app"></div>
     <div class="hud hidden" id="hud">
-      <div id="tl"><div id="score">0</div><div id="combo"></div><div id="streak"></div></div>
-      <div id="tr"><div id="dist">0 m</div><div id="kills">격파 0</div><div id="time">0:00</div></div>
+      <div id="tl"><div id="score">0</div><div id="combo"></div><div id="wave">WAVE 1</div></div>
+      <div id="tc"><div id="timer">60.0</div>
+        <div id="tbar"><div id="tname">빨간 망토 Lv.1</div><div class="bar" id="thp"><i></i></div></div>
+      </div>
+      <div id="tr"><div id="dist">0 m</div><div id="kills">격추 0</div></div>
       <div id="cross"></div>
       <div id="lock"></div>
+      <div id="lockTxt">LOCK ON</div>
+      <div id="arrow">➤</div>
       <div id="skim">LOW FLY!</div>
+      <div id="banner"></div>
       <div id="popups"></div>
       <div id="bottom">
         <div id="speedWrap"><span id="speed">0</span><small>km/h</small></div>
@@ -85,17 +107,17 @@
     <div id="touchBtns"><div id="btnBoost">BOOST</div><div id="btnFire">FIRE</div></div>
     <div class="overlay" id="titleScr">
       <div class="title">SKY RUSH</div>
-      <div class="sub">빗자루를 타고 초원을 가르며 날아라!</div>
+      <div class="sub">도망치는 빨간 망토를 추격해 격추하라! — 1인칭 비행 슈팅</div>
       <button class="btn" id="startBtn">START</button>
       <div class="keys desk">
-        <b>마우스</b> 조종 &nbsp;/&nbsp; <b>W A S D</b> <b>방향키</b> 조종<br />
-        <b>좌클릭</b> <b>Space</b> 마법탄 (자동 조준) &nbsp; <b>우클릭</b> <b>Shift</b> 부스트<br />
-        링 통과 · 아치 통과 · 저공비행 · 부스트 들이받기 = 점수 콤보!
+        <b>마우스</b> 또는 <b>W A S D</b> <b>방향키</b> 조종 &nbsp; <b>우클릭</b> <b>Shift</b> 부스트<br />
+        표적을 시야 원 안에 두면 <b>자동 락온</b> → <b>자동 사격</b> (좌클릭/Space = 수동 사격)<br />
+        격추 시 시간 +12초 · 표적이 던지는 바위는 피하거나 쏘거나 부스트로 박살!
       </div>
-      <div class="keys mob">왼쪽 드래그 = 조종 · 오른쪽 버튼 = 부스트/발사<br />링 · 아치 · 저공비행 · 부스트 들이받기로 콤보!</div>
+      <div class="keys mob">왼쪽 드래그 = 조종 · BOOST 버튼 = 가속<br />표적을 화면 안에 잡으면 자동 락온·자동 사격!</div>
     </div>
     <div class="overlay hidden" id="overScr">
-      <div class="title" style="font-size: clamp(44px, 9vw, 84px)">GAME OVER</div>
+      <div class="title" id="overTitle" style="font-size: clamp(40px, 8vw, 80px)">GAME OVER</div>
       <div class="stats" id="stats"></div>
       <button class="btn" id="retryBtn">RETRY</button>
     </div>
