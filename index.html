@@ -2,18 +2,104 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>선거비용 수사관 플레이북</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@700;900&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Sky Rush</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet" />
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { background: #080810; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: #9fd4ff; touch-action: none; user-select: none; -webkit-user-select: none; }
+      body { font-family: 'Rajdhani', 'Black Han Sans', sans-serif; color: #fff; }
+      #app canvas { display: block; }
+      .hud { position: fixed; inset: 0; pointer-events: none; text-shadow: 0 2px 6px rgba(0,40,80,.55); }
+      .hud.hidden { display: none; }
+      #tl { position: absolute; left: 20px; top: 16px; }
+      #score { font-size: 42px; font-weight: 700; letter-spacing: 1px; line-height: 1; }
+      #combo { font-size: 22px; font-weight: 700; color: #ffe066; margin-top: 4px; min-height: 26px; transition: transform .08s; }
+      #combo.bump { transform: scale(1.35); }
+      #streak { font-size: 16px; color: #aef9ff; }
+      #tr { position: absolute; right: 20px; top: 16px; text-align: right; font-size: 18px; font-weight: 700; }
+      #bottom { position: absolute; left: 20px; bottom: 20px; width: min(340px, 55vw); }
+      #speedWrap { margin-bottom: 4px; }
+      #speed { font-size: 52px; font-weight: 700; line-height: 1; font-style: italic; }
+      #speed small { font-size: 18px; margin-left: 4px; }
+      .bar { height: 10px; border-radius: 6px; background: rgba(0,30,60,.35); overflow: hidden; margin-top: 6px; box-shadow: 0 0 0 2px rgba(255,255,255,.35) inset; }
+      .bar > i { display: block; height: 100%; width: 100%; border-radius: 6px; transition: width .1s; }
+      #hpBar > i { background: linear-gradient(90deg, #ff5e7a, #ffb36b); }
+      #enBar > i { background: linear-gradient(90deg, #4ff3ff, #b8fffb); }
+      .lbl { display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px; opacity: .9; }
+      #cross { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border: 2px solid rgba(255,255,255,.75); border-radius: 50%; }
+      #cross::after { content: ''; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; background: #fff; border-radius: 50%; }
+      #lock { position: absolute; width: 70px; height: 70px; margin: -35px 0 0 -35px; border: 3px solid #7ffcff; border-radius: 50%; box-shadow: 0 0 12px #7ffcff, inset 0 0 12px #7ffcff; display: none; }
+      #lock::before, #lock::after { content: ''; position: absolute; background: #7ffcff; }
+      #lock::before { left: 50%; top: -10px; width: 3px; height: 14px; margin-left: -1.5px; }
+      #lock::after { top: 50%; left: -10px; height: 3px; width: 14px; margin-top: -1.5px; }
+      #skim { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); font-size: 26px; font-weight: 700; color: #b6ff6b; letter-spacing: 3px; opacity: 0; transition: opacity .15s; }
+      #skim.on { opacity: 1; }
+      .popup { position: absolute; left: 0; top: 0; font-weight: 700; font-size: 26px; white-space: nowrap; color: #fff; text-shadow: 0 0 8px rgba(0,0,0,.4), 0 2px 0 rgba(0,0,0,.35); }
+      .popup.kill { font-size: 40px; color: #ff7ad9; }
+      .popup.ring { color: #aefcff; }
+      .popup.gold { color: #ffd34d; font-size: 34px; }
+      .popup.bad { color: #ff5e5e; font-size: 22px; }
+      .popup.smash { color: #b6ff6b; }
+      .overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: radial-gradient(ellipse at center, rgba(10,40,90,.15), rgba(10,30,70,.55)); padding: 16px; }
+      .overlay.hidden { display: none; }
+      .title { font-family: 'Black Han Sans', sans-serif; font-size: clamp(56px, 12vw, 120px); line-height: .95; letter-spacing: 2px; background: linear-gradient(180deg, #fff 30%, #9ff5ff); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 6px 0 rgba(0,50,110,.45)); font-style: italic; }
+      .sub { font-size: 20px; margin: 10px 0 26px; opacity: .95; }
+      .btn { pointer-events: auto; cursor: pointer; font-family: inherit; font-weight: 700; font-size: 26px; color: #06325a; background: linear-gradient(180deg, #fff, #bff7ff); border: none; border-radius: 40px; padding: 14px 48px; box-shadow: 0 6px 0 #2b8fb8, 0 10px 24px rgba(0,40,80,.4); transition: transform .08s; }
+      .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #2b8fb8; }
+      .keys { margin-top: 26px; font-size: 16px; line-height: 1.7; opacity: .95; background: rgba(0,30,70,.35); border-radius: 14px; padding: 12px 20px; }
+      .keys b { display: inline-block; min-width: 26px; padding: 0 6px; border-radius: 5px; background: rgba(255,255,255,.2); margin: 0 2px; }
+      .stats { font-size: 22px; line-height: 1.6; margin: 14px 0 24px; }
+      .stats .big { font-size: 64px; font-weight: 700; color: #ffe066; line-height: 1; }
+      #stick { position: fixed; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; border: 2px solid rgba(255,255,255,.5); background: rgba(255,255,255,.1); display: none; pointer-events: none; }
+      #knob { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,.6); transform: translate(-50%,-50%); }
+      #touchBtns { position: fixed; right: 18px; bottom: 110px; display: none; flex-direction: column; gap: 14px; }
+      #touchBtns div { pointer-events: auto; width: 84px; height: 84px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; border: 2px solid rgba(255,255,255,.7); background: rgba(0,40,80,.3); }
+      #touchBtns div.on { background: rgba(127,252,255,.5); }
+      @media (pointer: coarse) { #touchBtns { display: flex; } .desk { display: none; } }
+      @media (pointer: fine) { .mob { display: none; } }
+      #mute { position: fixed; right: 16px; bottom: 16px; pointer-events: auto; background: rgba(0,30,70,.35); color: #fff; border: none; border-radius: 20px; padding: 6px 12px; font-family: inherit; font-weight: 700; cursor: pointer; }
+      @media (max-width: 600px) { #score { font-size: 30px; } #speed { font-size: 38px; } #tr { font-size: 14px; } #bottom { bottom: 12px; left: 12px; width: 48vw; } #touchBtns { bottom: 24px; } }
     </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <div id="app"></div>
+    <div class="hud hidden" id="hud">
+      <div id="tl"><div id="score">0</div><div id="combo"></div><div id="streak"></div></div>
+      <div id="tr"><div id="dist">0 m</div><div id="kills">격파 0</div><div id="time">0:00</div></div>
+      <div id="cross"></div>
+      <div id="lock"></div>
+      <div id="skim">LOW FLY!</div>
+      <div id="popups"></div>
+      <div id="bottom">
+        <div id="speedWrap"><span id="speed">0</span><small>km/h</small></div>
+        <div class="lbl"><span>HP</span><span id="hpTxt">100</span></div>
+        <div class="bar" id="hpBar"><i></i></div>
+        <div class="lbl"><span>BOOST</span><span id="enTxt">100</span></div>
+        <div class="bar" id="enBar"><i></i></div>
+      </div>
+    </div>
+    <div id="stick"><div id="knob"></div></div>
+    <div id="touchBtns"><div id="btnBoost">BOOST</div><div id="btnFire">FIRE</div></div>
+    <div class="overlay" id="titleScr">
+      <div class="title">SKY RUSH</div>
+      <div class="sub">빗자루를 타고 초원을 가르며 날아라!</div>
+      <button class="btn" id="startBtn">START</button>
+      <div class="keys desk">
+        <b>마우스</b> 조종 &nbsp;/&nbsp; <b>W A S D</b> <b>방향키</b> 조종<br />
+        <b>좌클릭</b> <b>Space</b> 마법탄 (자동 조준) &nbsp; <b>우클릭</b> <b>Shift</b> 부스트<br />
+        링 통과 · 아치 통과 · 저공비행 · 부스트 들이받기 = 점수 콤보!
+      </div>
+      <div class="keys mob">왼쪽 드래그 = 조종 · 오른쪽 버튼 = 부스트/발사<br />링 · 아치 · 저공비행 · 부스트 들이받기로 콤보!</div>
+    </div>
+    <div class="overlay hidden" id="overScr">
+      <div class="title" style="font-size: clamp(44px, 9vw, 84px)">GAME OVER</div>
+      <div class="stats" id="stats"></div>
+      <button class="btn" id="retryBtn">RETRY</button>
+    </div>
+    <button id="mute">🔊</button>
+    <script type="module" src="/src/main.js"></script>
   </body>
 </html>
