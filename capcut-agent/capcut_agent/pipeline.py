@@ -9,10 +9,10 @@ import uuid
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
 
-from . import audio, cuts as C, draft, filler, subtitles
+from . import audio, cuts as C, draft, filler, plan as PL, points as P, subtitles
 from .asr import AsrService, Transcript
 
-STAGES = [("silence", "무음 감지"), ("asr", "음성 인식"), ("filler", "잔말·NG 판정"), ("draft", "드래프트 생성")]
+STAGES = [("silence", "무음 감지"), ("asr", "음성 인식"), ("filler", "잔말·NG 판정"), ("points", "편집 포인트 탐색"), ("draft", "드래프트 생성")]
 MIN_STAGE = float(os.environ.get("CAPCUT_MIN_STAGE", "0.4"))   # 캐시 hit여도 단계가 눈에 보이도록
 
 
@@ -20,10 +20,19 @@ MIN_STAGE = float(os.environ.get("CAPCUT_MIN_STAGE", "0.4"))   # 캐시 hit여�
 class Options:
     model: str = "small"
     threshold_db: float | None = None      # None = 적응형
-    min_silence: float = 0.4
-    pad: float = 0.12                      # 컷 경계에 남기는 숨쉬기 여유
-    aggressive: bool = False
+    min_silence: float | None = None       # None = 워크플로 프리셋 값
+    pad: float | None = None               # 컷 경계에 남기는 숨쉬기 여유
+    aggressive: bool | None = None
     subtitles: bool = True
+    workflow: str = "longform"             # shorts | longform | lecture
+    features: dict | None = None           # 편집 포인트별 on/off 덮어쓰기 (None = 프리셋)
+    glossary: str = ""                     # "틀린표기=맞는표기" / "강조어" 줄 단위
+
+    def resolved(self) -> "Options":
+        pr = P.PRESETS[self.workflow]["options"]
+        return Options(**{**asdict(self), "min_silence": self.min_silence if self.min_silence is not None else pr["min_silence"],
+                          "pad": self.pad if self.pad is not None else pr["pad"],
+                          "aggressive": self.aggressive if self.aggressive is not None else pr["aggressive"]})
 
 
 @dataclass
@@ -42,6 +51,8 @@ class Job:
     cuts: list[C.Cut] = field(default_factory=list)
     keep_marks: list[tuple[float, float]] = field(default_factory=list)
     transcript: Transcript | None = None
+    samples: object = None                 # 16kHz mono PCM (재빌드 시 음량/강조 분석에 재사용)
+    point_off: set[str] = field(default_factory=set)
 
     def emit(self, type_: str, **data) -> None:
         self.events.append({"i": len(self.events), "t": round(time.time(), 2), "type": type_, **data})
@@ -90,32 +101,56 @@ def _silence_cuts(speech, duration, o: Options) -> list[tuple[str, float, float,
     return out
 
 
-def build_result(job: Job, draft_root: Path) -> dict:
-    """현재 cuts/keep_marks 기준으로 keep 계산 → 자막 → 드래프트. ASR 재실행 없음."""
-    dur = job.info["duration"]
-    keep = C.compute_keep(dur, job.cuts, job.keep_marks)
+def make_plan(job: Job, keep: list[C.Interval] | None = None, workflow: str | None = None,
+              features: dict | None = None) -> PL.Plan:
+    keep = keep if keep is not None else C.compute_keep(job.info["duration"], job.cuts, job.keep_marks)
     if not keep:
         raise ValueError("남는 구간이 없어요. 말이 감지되지 않았거나 컷이 전부 활성화돼 있습니다 (무음 기준 dB를 낮춰보세요)")
-    subs = subtitles.build(job.transcript, keep)
+    o = job.options
+    return PL.build(job.transcript, job.samples, keep, job.info, workflow=workflow or o.workflow,
+                    features=features if features is not None else o.features, off=job.point_off, glossary=o.glossary)
+
+
+def write_draft(job: Job, plan: PL.Plan, draft_root: Path) -> dict:
+    """현재 cuts/keep_marks/plan 기준 드래프트 + 결과 dict. ASR 재실행 없음."""
+    dur = job.info["duration"]
+    keep = C.compute_keep(dur, job.cuts, job.keep_marks)
     name = draft.safe_name(Path(job.filename).stem) + "_" + job.id[:4]
-    path = draft.build(str(job.source), job.info, keep, subs, draft_root, name, job.options.subtitles)
-    (job.dir / "subtitles.srt").write_text(subtitles.to_srt(subs), "utf-8")
-    out = C.total(keep)
+    path = draft.build(str(job.source), job.info, plan, draft_root, name, job.options.subtitles)
+    (job.dir / "subtitles.srt").write_text(subtitles.to_srt(plan.subs), "utf-8")
+    main_len = C.total(keep)
     counts = {k: sum(1 for c in job.cuts if c.kind == k and c.enabled) for k in ("silence", "filler", "ng")}
+    pcounts = {k: sum(1 for p in plan.points if p.kind == k and p.enabled) for k in P.KINDS if k != "highlight"}
+    hl = P.detect_highlights(job.transcript, job.samples, keep) if job.options.workflow != "shorts" else []
+    prev = job.result or {}
     return {
-        "duration": round(dur, 3), "out_duration": round(out, 3), "saved": round(dur - out, 3),
-        "saved_pct": round((dur - out) / dur * 100, 1) if dur else 0,
+        "duration": round(dur, 3), "out_duration": round(plan.out_duration, 3), "saved": round(dur - main_len, 3),
+        "saved_pct": round((dur - main_len) / dur * 100, 1) if dur else 0, "teaser_len": round(plan.teaser_len, 3),
         "keep": [[round(s, 3), round(e, 3)] for s, e in keep],
         "cuts": [c.to_dict() for c in job.cuts], "keep_marks": [list(k) for k in job.keep_marks],
-        "counts": counts, "subtitle_count": len(subs), "draft_path": str(path), "draft_name": name,
-        "info": job.info, "transcript": job.transcript.to_dict(),
-        "peaks": job.result["peaks"] if job.result else [], "threshold_db": job.result["threshold_db"] if job.result else None,
-        "asr": job.result["asr"] if job.result else {},
+        "counts": counts, "point_counts": pcounts, "subtitle_count": len(plan.subs),
+        "points": [p.to_dict() for p in plan.points], "highlights": [h.to_dict() for h in hl],
+        "preview": plan.preview, "chapters_text": plan.chapters_text,
+        "workflow": job.options.workflow, "canvas": list(plan.canvas),
+        "draft_path": str(path), "draft_name": name, "info": job.info, "transcript": job.transcript.to_dict(),
+        "peaks": prev.get("peaks", []), "threshold_db": prev.get("threshold_db"), "asr": prev.get("asr", {}),
     }
 
 
+def build_clip(job: Job, draft_root: Path, start: float, end: float) -> dict:
+    """숏츠 후보 구간 → 별도 9:16 숏폼 드래프트(훅/챕터 없이)."""
+    keep = C.compute_keep(job.info["duration"], job.cuts, job.keep_marks)
+    win = [(max(s, start), min(e, end)) for s, e in keep if e > start and s < end]
+    plan = make_plan(job, [w for w in win if w[1] - w[0] > 0.1], "shorts", {"hook": False, "chapters": False})
+    name = f"{draft.safe_name(Path(job.filename).stem)}_short_{int(start)}"
+    path = draft.build(str(job.source), job.info, plan, draft_root, name, job.options.subtitles)
+    return {"draft_path": str(path), "draft_name": name, "out_duration": round(plan.out_duration, 2),
+            "subtitle_count": len(plan.subs), "canvas": list(plan.canvas)}
+
+
 async def run(job: Job, asr: AsrService, draft_root: Path) -> None:
-    o = job.options
+    o = job.options.resolved()
+    job.options = o
     job.status = "running"
     try:
         job.info = await asyncio.to_thread(audio.probe, str(job.source))
@@ -124,11 +159,12 @@ async def run(job: Job, asr: AsrService, draft_root: Path) -> None:
         async def s_silence():
             samples = await asyncio.to_thread(audio.load_pcm, str(job.source))
             speech, thr = audio.detect_speech(samples, threshold_db=o.threshold_db, min_silence=o.min_silence)
-            meta.update(speech=speech, thr=thr, peaks=audio.waveform_peaks(samples), samples=samples)
+            job.samples = samples
+            meta.update(speech=speech, thr=thr, peaks=audio.waveform_peaks(samples))
         await _stage(job, "silence", s_silence)
 
         async def s_asr():
-            job.transcript, cached = await asr.transcribe(str(job.source), meta.pop("samples"), o.model)
+            job.transcript, cached = await asr.transcribe(str(job.source), job.samples, o.model)
             meta["cached"] = cached
         await _stage(job, "asr", s_asr)
 
@@ -138,10 +174,14 @@ async def run(job: Job, asr: AsrService, draft_root: Path) -> None:
             job.cuts = [C.Cut(i, k, s, e, l) for i, (k, s, e, l) in enumerate(found)]
         await _stage(job, "filler", s_filler)
 
+        async def s_points():
+            meta["plan"] = await asyncio.to_thread(make_plan, job)
+        await _stage(job, "points", s_points)
+
         async def s_draft():
             job.result = {"peaks": meta["peaks"], "threshold_db": round(meta["thr"], 1),
                           "asr": {"backend": asr.backend.name, "model": o.model, "cached": meta["cached"]}}
-            job.result = await asyncio.to_thread(build_result, job, draft_root)
+            job.result = await asyncio.to_thread(write_draft, job, meta["plan"], draft_root)
         await _stage(job, "draft", s_draft)
         job.status = "done"
         job.emit("done")
@@ -150,11 +190,15 @@ async def run(job: Job, asr: AsrService, draft_root: Path) -> None:
         job.emit("error", message=job.error)
 
 
-async def rebuild(job: Job, draft_root: Path, toggles: dict[int, bool], keep_marks: list[tuple[float, float]]) -> dict:
+async def rebuild(job: Job, draft_root: Path, toggles: dict[int, bool], keep_marks: list[tuple[float, float]],
+                  point_toggles: dict[str, bool] | None = None) -> dict:
     for c in job.cuts:
         if c.id in toggles:
             c.enabled = toggles[c.id]
     job.keep_marks = [(float(s), float(e)) for s, e in keep_marks if e > s]
-    job.result = await asyncio.to_thread(build_result, job, draft_root)
+    for k, on in (point_toggles or {}).items():
+        (job.point_off.discard if on else job.point_off.add)(k)
+    plan = await asyncio.to_thread(make_plan, job)
+    job.result = await asyncio.to_thread(write_draft, job, plan, draft_root)
     job.emit("rebuilt")
     return job.result

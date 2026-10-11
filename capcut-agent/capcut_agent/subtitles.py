@@ -18,7 +18,7 @@ def _kept(t: float, keep: list[Interval]) -> bool:
     return any(s <= t <= e for s, e in keep)
 
 
-def build(tr: Transcript, keep: list[Interval], max_chars: int = 18) -> list[Sub]:
+def build(tr: Transcript, keep: list[Interval], max_chars: int = 18, fixes: dict[str, str] | None = None) -> list[Sub]:
     subs: list[Sub] = []
     for seg in tr.segments:
         words = [w for w in seg.words if _kept((w.start + w.end) / 2, keep)]
@@ -35,7 +35,10 @@ def build(tr: Transcript, keep: list[Interval], max_chars: int = 18) -> list[Sub
             s, e = remap_clamp(ln[0].start, keep), remap_clamp(ln[-1].end, keep)
             if e <= s:
                 continue
-            subs.append(Sub(s, e, " ".join(x.text for x in ln)))
+            txt = " ".join(x.text for x in ln)
+            for a, b in (fixes or {}).items():          # 용어 사전 교정 (예: "채권 관리"→"채권관리")
+                txt = txt.replace(a, b)
+            subs.append(Sub(s, e, txt))
     # 자막끼리 겹침 방지
     for a, b in zip(subs, subs[1:]):
         if a.end > b.start:

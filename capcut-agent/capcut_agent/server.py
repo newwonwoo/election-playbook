@@ -10,7 +10,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
-from . import env, pipeline
+from . import env, pipeline, points as P
 from .asr import AsrService, Backend, default_backend
 
 WEB = Path(__file__).resolve().parent.parent / "web"
@@ -21,6 +21,12 @@ ALLOWED = {".mp4", ".mov", ".m4v"}
 class RebuildReq(BaseModel):
     toggles: dict[int, bool] = {}
     keep_marks: list[tuple[float, float]] = []
+    point_toggles: dict[str, bool] = {}
+
+
+class ClipReq(BaseModel):
+    start: float
+    end: float
 
 
 def create_app(workdir: Path | None = None, backend: Backend | None = None,
@@ -51,14 +57,22 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
 
     @app.post("/api/jobs")
     async def create_job(file: UploadFile = File(...), model: str = Form("small"),
-                         threshold_db: float | None = Form(None), min_silence: float = Form(0.4),
-                         pad: float = Form(0.12), aggressive: bool = Form(False),
-                         subtitles: bool = Form(True)):
+                         threshold_db: float | None = Form(None), min_silence: float | None = Form(None),
+                         pad: float | None = Form(None), aggressive: bool | None = Form(None),
+                         subtitles: bool = Form(True), workflow: str = Form("longform"),
+                         features: str = Form(""), glossary: str = Form("")):
         ext = Path(file.filename or "").suffix.lower()
         if ext not in ALLOWED:
             raise HTTPException(400, "mp4 / mov 파일만 지원합니다")
-        opts = pipeline.Options(model=model, threshold_db=threshold_db, min_silence=min_silence,
-                                pad=pad, aggressive=aggressive, subtitles=subtitles)
+        if workflow not in P.PRESETS:
+            raise HTTPException(400, "알 수 없는 워크플로입니다")
+        try:
+            feats = json.loads(features) if features else None
+        except ValueError:
+            raise HTTPException(400, "features는 JSON이어야 합니다")
+        opts = pipeline.Options(model=model, threshold_db=threshold_db, min_silence=min_silence, pad=pad,
+                                aggressive=aggressive, subtitles=subtitles, workflow=workflow,
+                                features=feats, glossary=glossary)
         job = store.create(file.filename or "video" + ext, opts)
         size = 0
         with job.source.open("wb") as f:               # 스트리밍 저장(메모리에 통째로 올리지 않음)
@@ -98,7 +112,24 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
         job = job_or_404(jid)
         if job.status != "done":
             raise HTTPException(409, "아직 처리 중입니다")
-        return await pipeline.rebuild(job, root, req.toggles, req.keep_marks)
+        return await pipeline.rebuild(job, root, req.toggles, req.keep_marks, req.point_toggles)
+
+    @app.post("/api/jobs/{jid}/clip")
+    async def clip(jid: str, req: ClipReq):
+        job = job_or_404(jid)
+        if job.status != "done":
+            raise HTTPException(409, "아직 처리 중입니다")
+        if req.end - req.start < 5:
+            raise HTTPException(400, "5초 이상의 구간을 지정하세요")
+        try:
+            return await asyncio.to_thread(pipeline.build_clip, job, root, req.start, req.end)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    @app.get("/api/presets")
+    def presets():
+        return {k: {"label": v["label"], "canvas": v["canvas"], "features": v["features"], "options": v["options"]}
+                for k, v in P.PRESETS.items()}
 
     @app.get("/api/jobs/{jid}/video")
     def video(jid: str):

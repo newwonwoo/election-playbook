@@ -46,7 +46,7 @@ def test_full_pipeline_and_draft(ctx, video):
     jid = upload(client, video)
     evs = wait_done(client, jid)
     order = [e["key"] for e in evs if e["type"] == "stage" and e["state"] == "done"]
-    assert order == ["silence", "asr", "filler", "draft"] and evs[-1]["type"] == "done"
+    assert order == ["silence", "asr", "filler", "points", "draft"] and evs[-1]["type"] == "done"
 
     res = client.get(f"/api/jobs/{jid}").json()["result"]
     assert res["counts"]["ng"] == 1 and res["counts"]["filler"] == 1 and res["counts"]["silence"] >= 2
