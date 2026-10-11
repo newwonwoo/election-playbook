@@ -1,0 +1,9 @@
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9
+numpy>=1.26
+pycapcut>=0.0.3
+faster-whisper>=1.0        # Win/Linux/Intel Mac (트랙 C / fallback)
+# mlx-whisper              # Apple Silicon 전용 (트랙 A): pip install mlx-whisper
+pytest>=8
+httpx>=0.27
