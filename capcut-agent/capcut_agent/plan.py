@@ -42,6 +42,7 @@ class Plan:
     sub_size: float = 7.0
     workflow: str = "longform"
     preview: dict = field(default_factory=dict)
+    enhance: bool = False          # 음질 보정(노이즈 제거 + 라우드니스 표준화) — 렌더 mp4에만 적용
 
 
 def parse_glossary(text: str) -> tuple[dict[str, str], set[str]]:
@@ -163,4 +164,5 @@ def build(tr: Transcript, samples: np.ndarray, keep: list[Interval], info: dict,
         "pops": [{"s": round(e.start, 3), "e": round(e.start + 1.1, 3), "text": e.data["text"]} for e in emph if e.enabled],   # 원본 시각(프리뷰는 원본 재생)
         "chapters": [{"s": round(c.start, 3), "title": c.label} for c in chapters if c.enabled],
     }
-    return Plan(clips, subs, overlays, pts, (cw, ch), base, teaser, out_total, chapters_text, preset["sub_size"], workflow, prev)
+    return Plan(clips, subs, overlays, pts, (cw, ch), base, teaser, out_total, chapters_text, preset["sub_size"], workflow, prev,
+                enhance=bool(f.get("enhance")))

@@ -141,6 +141,17 @@ textarea{width:100%;min-height:70px;background:#0f0f0f;color:var(--text);border:
 .vsw button{padding:3px 12px;font-size:12px;border-radius:999px}
 .vsw button[aria-pressed=true]{border-color:var(--acc);color:var(--acc)}
 .final canvas{opacity:.25}
+#recent{margin-top:28px}
+.rrow{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:10px 4px;border-top:1px solid var(--line);cursor:pointer}
+.rrow:hover{background:#121212}
+.rrow .nm{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rrow .mt{font:12px var(--mono);color:var(--mute)}
+.rrow button{padding:2px 10px;font-size:12px}
+#selbar{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:#1c1c1c;border:1px solid var(--line2);border-radius:10px;padding:8px 10px 8px 16px;display:flex;gap:10px;align-items:center;font-size:13px;z-index:5}
+#qinfo{margin:10px 0 0;color:var(--warn);font-size:13px}
+.w.edited{border-bottom:1px dotted var(--acc)}
+.w.removed{color:var(--warn);text-decoration:line-through dotted}
+input.winp{background:#0f0f0f;color:var(--text);border:1px solid var(--acc);border-radius:4px;font:inherit;padding:0 4px}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1c1c1c;border:1px solid var(--line2);padding:8px 16px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s}
 #toast.show{opacity:1}
 </style>
@@ -185,6 +196,11 @@ textarea{width:100%;min-height:70px;background:#0f0f0f;color:var(--text);border:
         <label class="f chk"><input type="checkbox" id="o-render" checked> 완성 mp4 자동 렌더링 <span class="hint">(끄면 캡컷 드래프트만)</span></label>
       </div>
     </details>
+    <div id="recent" class="hide">
+      <h2>최근 작업</h2>
+      <div id="rlist"></div>
+      <div class="row" style="margin-top:12px;justify-content:space-between"><span class="hint" id="usage"></span><button id="cleanbtn" type="button">오래된 작업 정리</button></div>
+    </div>
   </section>
 
   <!-- 2. 진행 -->
@@ -192,8 +208,9 @@ textarea{width:100%;min-height:70px;background:#0f0f0f;color:var(--text);border:
     <div id="proc" class="card">
       <div class="fname" id="pname"></div>
       <div id="steps"></div>
+      <div id="qinfo" class="hide"></div>
       <div id="err"></div>
-      <button id="retry" class="hide" style="margin-top:14px">처음으로</button>
+      <div class="row" style="margin-top:14px"><button id="cancel">취소</button><button id="retry2" class="hide pri">다시 시도</button><button id="retry" class="hide">처음으로</button></div>
     </div>
   </section>
 
@@ -258,12 +275,13 @@ textarea{width:100%;min-height:70px;background:#0f0f0f;color:var(--text);border:
       </div>
 
       <div class="card" id="tr">
-        <h2>대본 <span class="hint">단어를 클릭하면 그 지점으로 이동 · 취소선 = 잘리는 부분</span></h2>
+        <h2>대본 <span class="hint">클릭 = 이동 · 드래그 = 삭제(컷) · 더블클릭 = 글자 수정 · 취소선 = 잘리는 부분</span></h2>
         <div id="trbody"></div>
       </div>
     </div>
   </section>
 </div>
+<div id="selbar" class="hide"><span id="seltxt"></span><button id="seldel" class="pri" type="button">삭제 (컷)</button><button id="selx" type="button">취소</button></div>
 <div id="toast" role="status"></div>
 
 <script>
@@ -271,13 +289,13 @@ textarea{width:100%;min-height:70px;background:#0f0f0f;color:var(--text);border:
 const $ = s => document.querySelector(s);
 const fmt = t => { t = Math.max(0, t); return Math.floor(t/60) + ":" + String(Math.floor(t%60)).padStart(2,"0"); };
 const fmt1 = t => t.toFixed(1) + "s";
-const KIND = {silence:"무음", filler:"잔말", ng:"NG"};
+const KIND = {silence:"무음", filler:"잔말", ng:"NG", user:"직접"};
 const MIN_KEEP = 0.35;                       // 서버(cuts.compute_keep)와 동일
 let W = {workflow:'longform', presets:{}, features:{}, aggDirty:false};
-let S = {pts:[], ptChange:{}, ptFilter:'all', job:null, res:null, cuts:[], marks:[], markStart:null, skip:true, words:[], dirty:false};
+let S = {edits:{}, pend:{}, newCuts:[], tmpId:0, selIdx:[], pts:[], ptChange:{}, ptFilter:'all', job:null, res:null, cuts:[], marks:[], markStart:null, skip:true, words:[], dirty:false};
 
 function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toast.h); toast.h=setTimeout(()=>t.classList.remove("show"),2200); }
-function show(id){ for (const s of ["idle","proc","res"]) $("#s-"+s).classList.toggle("hide", s!==id); }
+function show(id){ for (const s of ["idle","proc","res"]) $("#s-"+s).classList.toggle("hide", s!==id); if (id==="idle") loadRecent(); }
 
 /* ---------- 환경 점검 (Step 0) ---------- */
 fetch("/api/env").then(r=>r.json()).then(e=>{
@@ -290,7 +308,7 @@ fetch("/api/env").then(r=>r.json()).then(e=>{
 });
 
 /* ---------- 워크플로 선택 ---------- */
-const FEAT = {hook:"오프닝 훅", zoom:"리듬 줌", emphasis:"강조 팝업", chapters:"챕터", loudness:"음량 균일화"};
+const FEAT = {hook:"오프닝 훅", zoom:"리듬 줌", emphasis:"강조 팝업", chapters:"챕터", loudness:"음량 균일화", enhance:"음질 보정"};
 const WF_DESC = {shorts:"세로 9:16 · 짧은 컷 · 큰 자막", longform:"가로 16:9 · 훅 + 챕터", lecture:"설명·교육 · 챕터 + 용어 강조"};
 fetch("/api/presets").then(r=>r.json()).then(p=>{ W.presets = p; pickWf(W.workflow); });
 function pickWf(k){
@@ -357,24 +375,76 @@ function renderSteps(state){
   }).join("");
 }
 function watch(id, name){
-  S.job = id; show("proc"); $("#pname").textContent = name; $("#err").textContent = ""; $("#retry").classList.add("hide");
+  S.job = id; S.jobName = name; show("proc"); $("#pname").textContent = name; $("#err").textContent = "";
+  $("#retry").classList.add("hide"); $("#retry2").classList.add("hide"); $("#cancel").classList.remove("hide"); $("#qinfo").classList.add("hide");
   const st = {}; st_pct = null; renderSteps(st);
+  const fail = msg => { $("#err").textContent = msg; $("#cancel").classList.add("hide"); $("#retry").classList.remove("hide"); $("#retry2").classList.remove("hide"); $("#qinfo").classList.add("hide"); };
   const es = new EventSource(`/api/jobs/${id}/events`);
   es.onmessage = m => {
     const ev = JSON.parse(m.data);
-    if (ev.type === "stage") { st[ev.key] = ev; renderSteps(st); }
+    if (ev.type === "stage") { $("#qinfo").classList.add("hide"); st[ev.key] = ev; renderSteps(st); }
+    else if (ev.type === "queue") { if (ev.pos > 0) { $("#qinfo").textContent = ev.pos === 1 ? "대기 중 — 다음 차례예요" : `대기 중 — 앞에 ${ev.pos-1}건이 있어요`; $("#qinfo").classList.remove("hide"); } }
     else if (ev.type === "progress") { st_pct = ev.pct; renderSteps(st); }
     else if (ev.type === "done") { es.close(); load(id); }
-    else if (ev.type === "error") { es.close(); $("#err").textContent = "처리 실패 — " + ev.message; $("#retry").classList.remove("hide"); }
+    else if (ev.type === "cancelled") { es.close(); fail("취소했어요"); }
+    else if (ev.type === "error") { es.close(); fail("처리 실패 — " + ev.message); }
   };
   es.onerror = () => { /* 브라우저가 자동 재연결, 서버가 이벤트를 처음부터 리플레이 */ };
+  S.es = es;
 }
-$("#retry").onclick = () => show("idle");
+$("#retry").onclick = () => { S.es && S.es.close(); show("idle"); };
+$("#cancel").onclick = async () => { await fetch(`/api/jobs/${S.job}/cancel`, {method:"POST"}); toast("취소 요청을 보냈어요 (음성 인식 중이면 그 단계가 끝나는 대로 멈춰요)"); };
+$("#retry2").onclick = async () => {
+  S.es && S.es.close();
+  const r = await fetch(`/api/jobs/${S.job}/retry`, {method:"POST"});
+  if (!r.ok) return toast((await r.json()).detail || "다시 시도할 수 없어요");
+  watch(S.job, S.jobName);
+};
+
+/* ---------- 최근 작업 / 저장 공간 ---------- */
+const WFN = {shorts:"숏폼", longform:"롱폼", lecture:"강의"};
+const STN = {done:"완료", running:"처리 중", queued:"대기", error:"실패", cancelled:"취소됨"};
+async function loadRecent(){
+  try {
+    const [jobs, env] = await Promise.all([fetch("/api/jobs").then(r=>r.json()), fetch("/api/env").then(r=>r.json())]);
+    $("#recent").classList.toggle("hide", !jobs.length);
+    $("#rlist").innerHTML = jobs.map(j => {
+      const dot = j.status==="done" ? "ok" : (j.status==="running"||j.status==="queued") ? "run" : j.status==="error" ? "bad" : "";
+      const when = new Date(j.created*1000).toLocaleString("ko-KR", {month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit"});
+      const extra = j.status==="queued" ? ` · ${j.queue}번째` : j.out_duration ? ` · ${fmt(j.out_duration)}` : "";
+      const rs = j.render==="done" ? " · mp4 있음" : j.render==="running" ? " · 렌더링 중" : "";
+      return `<div class="rrow" data-id="${j.id}" data-st="${j.status}" data-name="${esc(j.filename)}" tabindex="0"><i class="dot ${dot}"></i>
+        <div><div class="nm">${esc(j.filename)}</div><div class="mt">${STN[j.status]||j.status} · ${WFN[j.workflow]||""} · ${when}${extra}${rs}</div></div>
+        <button class="del" data-id="${j.id}" type="button">삭제</button></div>`;
+    }).join("");
+    const u = env.usage || {}; const tot = (u.jobs||0)+(u.output||0)+(u.asr_cache||0);
+    $("#usage").textContent = `작업 폴더 ${tot > 1e9 ? (tot/1e9).toFixed(1)+"GB" : mb(tot)} (원본 복사본 ${mb(u.jobs||0)} · 완성 영상 ${mb(u.output||0)})`;
+  } catch(_) {}
+}
+$("#rlist").addEventListener("click", async e => {
+  const del = e.target.closest(".del");
+  if (del) {
+    e.stopPropagation();
+    if (!confirm("이 작업을 삭제할까요?\n원본 복사본, 완성 mp4, 캡컷 드래프트가 모두 지워져요.")) return;
+    const r = await (await fetch(`/api/jobs/${del.dataset.id}`, {method:"DELETE"})).json();
+    toast(`${mb(r.freed)} 정리했어요`); return loadRecent();
+  }
+  const row = e.target.closest(".rrow"); if (!row) return;
+  S.job = row.dataset.id;
+  if (row.dataset.st === "done") load(row.dataset.id); else watch(row.dataset.id, row.dataset.name);
+});
+$("#cleanbtn").onclick = async () => {
+  const days = 30, pv = await (await fetch(`/api/cleanup?days=${days}`)).json();
+  if (!pv.count) return toast(`${days}일 지난 작업이 없어요`);
+  if (!confirm(`${days}일 지난 작업 ${pv.count}개(${mb(pv.bytes)})를 삭제할까요?\n완성 mp4와 캡컷 드래프트도 함께 지워져요. 필요한 영상은 먼저 받아 두세요.`)) return;
+  const r = await (await fetch("/api/cleanup", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({days})})).json();
+  toast(`${mb(r.freed)} 정리했어요`); loadRecent();
+};
 
 /* ---------- 결과 ---------- */
 async function load(id){
   const j = await (await fetch(`/api/jobs/${id}`)).json();
-  S.res = j.result; S.ptChange = {}; S.pts = j.result.points; S.cuts = j.result.cuts.map(c=>({...c})); S.marks = j.result.keep_marks.map(m=>[...m]); S.dirty = false;
+  S.res = j.result; S.ptChange = {}; S.edits = {...(j.result.word_edits||{})}; S.pend = {}; S.newCuts = []; S.tmpId = 0; S.pts = j.result.points; S.cuts = j.result.cuts.map(c=>({...c})); S.marks = j.result.keep_marks.map(m=>[...m]); S.dirty = false;
   const v = $("#vid"); v.src = `/api/jobs/${id}/video`;
   $("#srt").href = `/api/jobs/${id}/srt`;
   $("#dpath").textContent = S.res.draft_path;
@@ -422,7 +492,11 @@ function renderCuts(){
 function esc(s){ return s.replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 $("#cutlist").addEventListener("click", e => {
   const el = e.target.closest(".cut"); if (!el) return;
-  const c = S.cuts.find(c=>c.id==el.dataset.id); c.enabled = !c.enabled; S.dirty = true;
+  const c = S.cuts.find(c=>c.id==el.dataset.id);
+  if (c.id < 0) {                                                   // 아직 저장 전인 '직접' 컷: 되돌리면 그냥 없앤다
+    S.cuts = S.cuts.filter(x => x !== c); S.newCuts = S.newCuts.filter(n => n.tmp !== c.id); S.dirty = S.dirty || S.newCuts.length>0 || Object.keys(S.pend).length>0; return refresh();
+  }
+  c.enabled = !c.enabled; S.dirty = true;
   if (!c.enabled) { $("#vid").currentTime = Math.max(0, c.start - 0.5); }     // 살린 부분을 바로 들어보게
   refresh();
 });
@@ -435,10 +509,12 @@ $("#marks").addEventListener("click", e => { const el=e.target.closest(".mk"); i
 
 $("#apply").onclick = async () => {
   const b = $("#apply"); b.disabled = true; b.textContent = "갱신 중…";
-  const toggles = {}; S.cuts.forEach(c => toggles[c.id] = c.enabled);
-  const r = await fetch(`/api/jobs/${S.job}/rebuild`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({toggles, keep_marks:S.marks, point_toggles:S.ptChange})});
+  const toggles = {}; S.cuts.filter(c => c.id >= 0).forEach(c => toggles[c.id] = c.enabled);
+  const add_cuts = S.newCuts.map(({start, end, label}) => ({start, end, label}));
+  const r = await fetch(`/api/jobs/${S.job}/rebuild`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({toggles, keep_marks:S.marks, point_toggles:S.ptChange, add_cuts, word_edits:S.pend})});
   if (!r.ok) { toast("갱신 실패"); return refresh(); }
-  S.res = await r.json(); S.dirty = false; S.ptChange = {}; S.pts = S.res.points; $("#dpath").textContent = S.res.draft_path; renderExtras();
+  S.res = await r.json(); S.dirty = false; S.ptChange = {}; S.pts = S.res.points;
+  S.cuts = S.res.cuts.map(c => ({...c})); S.newCuts = []; S.tmpId = 0; S.pend = {}; S.edits = {...(S.res.word_edits||{})}; buildWords(); $("#dpath").textContent = S.res.draft_path; renderExtras();
   $("#asrinfo").textContent = $("#asrinfo").textContent.replace(/자막 \d+줄/, `자막 ${S.res.subtitle_count}줄`);
   toast("드래프트를 갱신했어요 — 완성 영상을 다시 렌더링합니다"); setFinal(false); refresh(); renderRender({state:"running",pct:0}); pollRender();
 };
@@ -450,8 +526,8 @@ const mb = n => (n/1048576).toFixed(1) + "MB";
 function renderRender(r){
   S.render = r || {state:"idle"};
   const st = S.render.state, dot = $("#rdot");
-  dot.className = "dot " + (st==="done" ? "ok" : st==="running" ? "run" : st==="error" ? "bad" : "");
-  $("#rtxt").textContent = st==="done" ? "완성 영상 준비됨" : st==="running" ? `완성 영상 렌더링 중 ${Math.round(S.render.pct||0)}%` : st==="error" ? "렌더링 실패" : st==="skipped" ? "완성 영상 생성 안 함" : "완성 영상";
+  dot.className = "dot " + (st==="done" ? "ok" : (st==="running"||st==="queued") ? "run" : st==="error" ? "bad" : "");
+  $("#rtxt").textContent = st==="done" ? "완성 영상 준비됨" : st==="queued" ? "렌더링 대기 중" : st==="running" ? `완성 영상 렌더링 중 ${Math.round(S.render.pct||0)}%` : st==="error" ? "렌더링 실패" : st==="skipped" ? "완성 영상 생성 안 함" : "완성 영상";
   $("#rsub").textContent = st==="done" ? `${mb(S.render.size)} · 편집 후에는 자동으로 다시 만들어져요` : st==="error" ? (S.render.error||"").slice(0,140) : st==="skipped" ? "옵션에서 '완성 mp4 자동 렌더링'을 켜면 만들어요" : "컷·자막·줌·팝업이 모두 적용된 mp4";
   $("#rbar i").style.width = (st==="done" ? 100 : st==="running" ? (S.render.pct||0) : 0) + "%";
   $("#rdl").classList.toggle("hide", st!=="done"); $("#rdl").href = `/api/jobs/${S.job}/mp4?dl=1`;
@@ -464,7 +540,7 @@ function pollRender(){
   clearTimeout(pollT);
   pollT = setTimeout(async () => {
     try { const j = await (await fetch(`/api/jobs/${S.job}`)).json(); renderRender(j.render);
-      if (j.render.state === "running") return pollRender();
+      if (j.render.state === "running" || j.render.state === "queued") return pollRender();
       if (j.render.state === "done") toast("완성 영상이 준비됐어요"); } catch(_) { pollRender(); }
   }, 1000);
 }
@@ -529,14 +605,71 @@ $("#tab-cuts").onclick = () => selTab("cuts"); $("#tab-pts").onclick = () => sel
 /* ---------- 대본 ---------- */
 function buildWords(){
   S.words = [];
-  $("#trbody").innerHTML = S.res.transcript.segments.map(seg => `<span class="seg"><span class="ts">${fmt(seg.start)}</span>` +
-    seg.words.map(w => { const i = S.words.push({...w}) - 1; return `<span class="w" data-i="${i}">${esc(w.text)}</span>`; }).join(" ") + "</span>").join("")
+  $("#trbody").innerHTML = S.res.transcript.segments.map((seg, si) => `<span class="seg"><span class="ts">${fmt(seg.start)}</span>` +
+    seg.words.map((w, wi) => {
+      const key = `${si}:${wi}`, has = key in S.edits, removed = has && S.edits[key] === "";
+      const orig = w.orig ?? w.text, shown = has && !removed ? S.edits[key] : (removed ? orig : w.text);
+      const i = S.words.push({...w, si, wi, key, orig}) - 1;
+      return `<span class="w${has && !removed ? " edited" : ""}${removed ? " removed" : ""}" data-i="${i}" title="${has ? "원래: " + esc(orig) : ""}">${esc(shown)}</span>`;
+    }).join(" ") + "</span>").join("")
     || `<p class="hint">인식된 말이 없어요</p>`;
 }
 function markWords(){
   document.querySelectorAll(".w").forEach(el => { const w = S.words[el.dataset.i]; el.classList.toggle("cutw", !inKeep((w.start+w.end)/2)); });
 }
-$("#trbody").addEventListener("click", e => { const el=e.target.closest(".w"); if (el && !S.final) $("#vid").currentTime = S.words[el.dataset.i].start; });
+$("#trbody").addEventListener("click", e => {
+  const el = e.target.closest(".w");
+  if (!el || S.final || (getSelection().toString().trim())) return;                  // 드래그 선택 직후 클릭은 이동 아님
+  $("#vid").currentTime = S.words[el.dataset.i].start;
+});
+
+/* 드래그로 단어 선택 → 삭제(컷) = 텍스트 기반 편집 */
+function selectedIdx(){
+  const sel = getSelection(); if (!sel || sel.isCollapsed || !sel.rangeCount) return [];
+  const r = sel.getRangeAt(0), out = [];
+  document.querySelectorAll("#trbody .w").forEach(el => { if (r.intersectsNode(el)) out.push(+el.dataset.i); });
+  return out;
+}
+function hideSel(){ $("#selbar").classList.add("hide"); S.selIdx = []; getSelection().removeAllRanges(); }
+$("#trbody").addEventListener("mouseup", () => setTimeout(() => {
+  const idx = selectedIdx(); if (!idx.length || S.final) return;
+  S.selIdx = idx; $("#seltxt").textContent = `${idx.length}단어 선택`; $("#selbar").classList.remove("hide");
+}, 0));
+function deleteSelected(){
+  const idx = [...S.selIdx].sort((a,b)=>a-b); if (!idx.length) return;
+  const groups = [[idx[0]]];
+  for (const i of idx.slice(1)) (i === groups[groups.length-1].slice(-1)[0] + 1 ? groups[groups.length-1] : groups[groups.push([])-1]).push(i);
+  for (const g of groups) {
+    const ws = g.map(i => S.words[i]), start = Math.max(0, ws[0].start - 0.03), end = ws[ws.length-1].end + 0.05;
+    const label = ws.map(w => w.text).join(" ").slice(0, 24), id = --S.tmpId;
+    S.cuts.push({id, kind:"user", start, end, label, enabled:true}); S.newCuts.push({tmp:id, start, end, label});
+  }
+  S.dirty = true; hideSel(); refresh(); toast(`${groups.length}개 구간을 컷으로 지웠어요 — '드래프트 갱신'으로 반영`);
+}
+$("#seldel").onclick = deleteSelected; $("#selx").onclick = hideSel;
+addEventListener("keydown", e => { if ((e.key === "Delete" || e.key === "Backspace") && S.selIdx.length && !/INPUT|TEXTAREA/.test(e.target.tagName)) { e.preventDefault(); deleteSelected(); } });
+
+/* 더블클릭 = 글자 수정 (자막·팝업에 반영, 빈 칸 = 자막에서 제외, 원래 글자로 쓰면 되돌림) */
+$("#trbody").addEventListener("dblclick", e => {
+  const el = e.target.closest(".w"); if (!el || S.final) return;
+  hideSel();
+  const w = S.words[el.dataset.i], has = w.key in S.edits;
+  const cur = has ? (S.edits[w.key] === "" ? w.orig : S.edits[w.key]) : w.text;
+  const inp = document.createElement("input"); inp.className = "winp"; inp.value = cur; inp.size = Math.max(3, cur.length + 1);
+  let done = false;
+  const finish = save => {
+    if (done) return; done = true;
+    if (save) {
+      const v = inp.value.trim();
+      if (v === w.orig) { delete S.edits[w.key]; S.pend[w.key] = null; } else { S.edits[w.key] = v; S.pend[w.key] = v; }
+      S.dirty = true;
+    }
+    buildWords(); refresh();
+  };
+  inp.onkeydown = ev => { ev.stopPropagation(); if (ev.key === "Enter") { ev.preventDefault(); finish(true); } else if (ev.key === "Escape") finish(false); };
+  inp.onblur = () => finish(false);
+  el.replaceWith(inp); inp.focus(); inp.select();
+});
 
 /* ---------- 타임라인 ---------- */
 const cv = $("#tl"), ctx = cv.getContext("2d");
@@ -615,6 +748,7 @@ addEventListener("keydown", e => {
     S.marks.push([S.markStart, vid.currentTime]); S.markStart = null; S.dirty = true; refresh(); toast("이 구간은 컷에서 제외돼요");
   }
 });
+loadRecent();
 </script>
 </body>
 </html>

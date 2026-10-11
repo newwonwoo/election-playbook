@@ -18,10 +18,22 @@ MAX_BYTES = 500 << 20
 ALLOWED = {".mp4", ".mov", ".m4v"}
 
 
+class NewCut(BaseModel):
+    start: float
+    end: float
+    label: str = ""
+
+
 class RebuildReq(BaseModel):
     toggles: dict[int, bool] = {}
     keep_marks: list[tuple[float, float]] = []
     point_toggles: dict[str, bool] = {}
+    add_cuts: list[NewCut] = []                    # 대본에서 지운 단어 → 직접 컷
+    word_edits: dict[str, str | None] = {}         # 자막/팝업용 단어 고치기 (None = 되돌리기)
+
+
+class CleanupReq(BaseModel):
+    days: float = 30
 
 
 class ClipReq(BaseModel):
@@ -34,6 +46,8 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
     workdir = workdir or Path(os.environ.get("CAPCUT_WORKDIR", "workspace")).resolve()
     workdir.mkdir(parents=True, exist_ok=True)
     store = pipeline.JobStore(workdir)
+    store.sched = pipeline.Scheduler()
+    store.load_all()                                  # 재시작해도 이전 작업이 남아 있다
     asr = AsrService(backend or default_backend(), workdir / "asr_cache")
     root = draft_root or env.capcut_draft_dir() or workdir / "output"
     app = FastAPI(title="캡컷 에이전트")
@@ -53,6 +67,7 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
         d = env.check(workdir)
         d["draft_root"] = str(root)
         d["backend"] = asr.backend.name
+        d["usage"] = store.usage()
         return d
 
     @app.post("/api/jobs")
@@ -83,12 +98,48 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
                     job.source.unlink(missing_ok=True)
                     raise HTTPException(413, "최대 500MB까지 지원합니다")
                 f.write(chunk)
-        asyncio.create_task(pipeline.run(job, asr, root))
+        asyncio.create_task(pipeline.run_queued(job, asr, root, store.sched))
         return {"id": job.id}
+
+    @app.get("/api/jobs")
+    def list_jobs(limit: int = 30):
+        return store.list(limit)
 
     @app.get("/api/jobs/{jid}")
     def get_job(jid: str):
         return job_or_404(jid).public()
+
+    @app.post("/api/jobs/{jid}/cancel")
+    def cancel_job(jid: str):
+        return {"status": pipeline.cancel(job_or_404(jid), store.sched)}
+
+    @app.post("/api/jobs/{jid}/retry")
+    async def retry_job(jid: str):
+        job = job_or_404(jid)
+        if job.status not in ("error", "cancelled"):
+            raise HTTPException(409, "실패/취소된 작업만 다시 시도할 수 있습니다")
+        if not job.source.exists():
+            raise HTTPException(410, "원본 영상이 정리되어 다시 시도할 수 없습니다")
+        job.events.clear()                              # 이전 실패/취소 이벤트가 새 화면에 먼저 재생되지 않게 즉시 비운다
+        job.status, job.error = "queued", None
+        asyncio.create_task(pipeline.run_queued(job, asr, root, store.sched))
+        return {"status": "queued"}
+
+    @app.delete("/api/jobs/{jid}")
+    def delete_job(jid: str):
+        job = job_or_404(jid)
+        return {"freed": store.delete(job)}
+
+    @app.get("/api/cleanup")
+    def cleanup_preview(days: float = 30):
+        old = store.stale(days)
+        return {"days": days, "count": len(old), "bytes": sum(sum(store.size_of(p) for p in store.artifacts(j)) for j in old),
+                "jobs": [j.summary() for j in old]}
+
+    @app.post("/api/cleanup")
+    def cleanup(req: CleanupReq):
+        freed = sum(store.delete(j) for j in store.stale(req.days))
+        return {"freed": freed, "usage": store.usage()}
 
     @app.get("/api/jobs/{jid}/events")
     async def events(jid: str):
@@ -101,7 +152,7 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
                     ev = job.events[i]
                     i += 1
                     yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
-                    if ev["type"] in ("done", "error"):
+                    if ev["type"] in ("done", "error", "cancelled"):
                         return
                 await asyncio.sleep(0.15)
         return StreamingResponse(gen(), media_type="text/event-stream",
@@ -112,7 +163,8 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
         job = job_or_404(jid)
         if job.status != "done":
             raise HTTPException(409, "아직 처리 중입니다")
-        return await pipeline.rebuild(job, root, req.toggles, req.keep_marks, req.point_toggles)
+        return await pipeline.rebuild(job, root, req.toggles, req.keep_marks, req.point_toggles,
+                                      [c.model_dump() for c in req.add_cuts], req.word_edits, store.sched)
 
     @app.post("/api/jobs/{jid}/clip")
     async def clip(jid: str, req: ClipReq):
@@ -148,9 +200,9 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
     @app.post("/api/jobs/{jid}/render")
     async def render_again(jid: str):
         job = job_or_404(jid)
-        if job.status != "done" or job.plan is None:
+        if job.status != "done":
             raise HTTPException(409, "아직 처리 중입니다")
-        asyncio.create_task(pipeline.render_bg(job))
+        asyncio.create_task(pipeline.render_bg(job, store.sched))
         return {"state": "running"}
 
     @app.get("/api/jobs/{jid}/files/{name}")

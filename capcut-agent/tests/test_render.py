@@ -44,8 +44,12 @@ def test_even_and_clip_filters():
         scale, volume = 1.15, 1.2
     class P:
         base_scale = 1920 / (1080 * 1080 / 1920)
+        enhance = False
     vf, af = R.clip_filters(info, P, (1080, 1920), C)
     assert "crop=1080:1920" in vf and "pad" not in vf and "volume=1.200" in af     # 9:16 꽉 채움 + 줌 + 음량
+    assert "afftdn" not in af
+    P.enhance = True
+    assert "afftdn" in R.clip_filters(info, P, (1080, 1920), C)[1]                  # 음질 보정 켜면 노이즈 제거 포함
 
 
 def test_ass_contains_korean_pop_and_chapter(plan_and_info):

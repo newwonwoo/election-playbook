@@ -12,6 +12,7 @@ from typing import Callable
 
 from .plan import Plan
 
+LOUDNORM = "loudnorm=I=-16:TP=-1.5:LRA=11"   # 유튜브/숏폼 표준 라우드니스
 MAX_INPUTS = 80          # 한 번의 ffmpeg 패스에서 여는 입력 수 상한(초과하면 청크 렌더 후 이어붙임)
 
 
@@ -108,7 +109,8 @@ def clip_filters(info: dict, plan: Plan, canvas: tuple[int, int], c) -> tuple[st
     if sw < cw or sh < ch:
         v.append(f"pad={cw}:{ch}:(ow-iw)/2:(oh-ih)/2:black")
     v += [f"fps={info['fps']}", "setsar=1", "format=yuv420p"]
-    a = [f"volume={c.volume:.3f}", "aresample=48000", "aformat=sample_fmts=fltp:channel_layouts=stereo"]
+    a = (["highpass=f=70", "afftdn=nr=10:nf=-30"] if plan.enhance else []) + \
+        [f"volume={c.volume:.3f}", "aresample=48000", "aformat=sample_fmts=fltp:channel_layouts=stereo"]
     return ",".join(v), ",".join(a)
 
 
@@ -133,19 +135,18 @@ def _run(cmd: list[str], total: float, on_pct: Callable[[float], None], cancel: 
         raise RuntimeError("ffmpeg 렌더 실패: " + (err[0] if err else "")[-600:])
 
 
-def _graph_pass(video: str, info: dict, plan: Plan, canvas, clips, work: Path, tag: str, ass: str | None, font_dir: str | None):
+def _graph_pass(video: str, info: dict, plan: Plan, canvas, clips, work: Path, tag: str, ass: str | None, font_dir: str | None, norm: bool = False):
     inputs: list[str] = []
     chains: list[str] = []
     for i, c in enumerate(clips):
         inputs += ["-ss", f"{c.src_s:.3f}", "-t", f"{c.src_e - c.src_s:.3f}", "-i", video]
         vf, af = clip_filters(info, plan, canvas, c)
         chains.append(f"[{i}:v:0]{vf}[v{i}];[{i}:a:0]{af}[a{i}]")
-    cat = "".join(f"[v{i}][a{i}]" for i in range(len(clips))) + f"concat=n={len(clips)}:v=1:a=1[vc][a]"
-    if ass:
-        fd = f":fontsdir={font_dir}" if font_dir else ""
-        chains.append(f"{cat};[vc]ass={ass}{fd}[v]")
-    else:
-        chains.append(cat.replace("[vc]", "[v]"))
+    cat = "".join(f"[v{i}][a{i}]" for i in range(len(clips))) + f"concat=n={len(clips)}:v=1:a=1[vc][ac]"
+    fd = f":fontsdir={font_dir}" if font_dir else ""
+    vlast = f"[vc]ass={ass}{fd}[v]" if ass else "[vc]null[v]"
+    alast = f"[ac]{LOUDNORM}[a]" if (norm and plan.enhance) else "[ac]anull[a]"
+    chains.append(f"{cat};{vlast};{alast}")
     script = work / f"graph_{tag}.txt"
     script.write_text(";\n".join(chains), "utf-8")
     return inputs, script
@@ -168,7 +169,7 @@ def render(video: str, info: dict, plan: Plan, out: Path, work: Path, *, on_prog
     out.parent.mkdir(parents=True, exist_ok=True)
 
     def single(cs, dest: Path, tag: str, final: bool, lo: float, hi: float):
-        inputs, script = _graph_pass(video, info, plan, canvas, cs, work, tag, "overlay.ass" if (final and use_ass) else None, None)
+        inputs, script = _graph_pass(video, info, plan, canvas, cs, work, tag, "overlay.ass" if (final and use_ass) else None, None, norm=final)
         codec = enc if final else ["-c:v", "libx264", "-preset", "superfast", "-crf", "14", "-pix_fmt", "yuv420p",
                                    "-c:a", "pcm_s16le"]
         cmd = base + inputs + ["-filter_complex_script", script.name, "-map", "[v]", "-map", "[a]"] + codec + [str(dest)]
@@ -186,6 +187,7 @@ def render(video: str, info: dict, plan: Plan, out: Path, work: Path, *, on_prog
             parts.append(p)
         (work / "list.txt").write_text("".join(f"file '{p.name}'\n" for p in parts), "utf-8")
         vf = ["-vf", "ass=overlay.ass"] if use_ass else []
+        vf += ["-af", LOUDNORM] if plan.enhance else []                # 청크 경로: 이어붙인 전체에 한 번에 표준화
         cmd = base + ["-f", "concat", "-safe", "0", "-i", "list.txt"] + vf + enc + [str(out)]
         _run(cmd, total, lambda f: on_progress(0.85 + 0.15 * f), cancel, work)
         for p in parts:

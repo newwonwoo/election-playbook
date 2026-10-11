@@ -18,15 +18,15 @@ from .cuts import Interval, remap_clamp
 # ---- 워크플로 프리셋: 어떤 편집 포인트를 어떤 강도로 쓸지 ------------------------------------
 PRESETS: dict[str, dict] = {
     "shorts": {"label": "숏폼 (쇼츠·릴스·틱톡)", "canvas": "9:16",
-               "features": {"hook": True, "zoom": True, "emphasis": True, "chapters": False, "loudness": True},
+               "features": {"hook": True, "zoom": True, "emphasis": True, "chapters": False, "loudness": True, "enhance": True},
                "zoom_every": 3.5, "zoom_scale": 1.15, "emphasis_gap": 3.0, "emphasis_per_min": 10,
                "min_chapter": 0, "sub_chars": 12, "sub_size": 10.0, "options": {"aggressive": True, "pad": 0.08, "min_silence": 0.3}},
     "longform": {"label": "유튜브 롱폼", "canvas": "16:9",
-                 "features": {"hook": True, "zoom": True, "emphasis": True, "chapters": True, "loudness": True},
+                 "features": {"hook": True, "zoom": True, "emphasis": True, "chapters": True, "loudness": True, "enhance": True},
                  "zoom_every": 8.0, "zoom_scale": 1.08, "emphasis_gap": 6.0, "emphasis_per_min": 5,
                  "min_chapter": 60, "sub_chars": 20, "sub_size": 7.0, "options": {"aggressive": False, "pad": 0.12, "min_silence": 0.4}},
     "lecture": {"label": "강의·설명 (교육 콘텐츠)", "canvas": "16:9",
-                "features": {"hook": False, "zoom": False, "emphasis": True, "chapters": True, "loudness": True},
+                "features": {"hook": False, "zoom": False, "emphasis": True, "chapters": True, "loudness": True, "enhance": True},
                 "zoom_every": 12.0, "zoom_scale": 1.06, "emphasis_gap": 8.0, "emphasis_per_min": 4,
                 "min_chapter": 45, "sub_chars": 22, "sub_size": 7.0, "options": {"aggressive": False, "pad": 0.15, "min_silence": 0.5}},
 }
