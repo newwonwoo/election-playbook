@@ -491,7 +491,12 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
 
 def main() -> None:
     import uvicorn
-    uvicorn.run(create_app(), host="127.0.0.1", port=int(os.environ.get("PORT", "8765")))
+    from .guard import Guard
+    guard = Guard.from_env()
+    app = guard(create_app())                       # Host/Origin 검사 + (선택) 비밀번호
+    if guard.password:
+        print("비밀번호 보호: 켜짐")
+    uvicorn.run(app, host="127.0.0.1", port=int(os.environ.get("PORT", "8765")))
 
 
 if __name__ == "__main__":

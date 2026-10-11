@@ -3,7 +3,13 @@
 한국어 토킹 영상(mp4/mov)을 올리면 **무음·잔말·NG 컷, 자막, 훅, 줌, 강조 팝업, 챕터, 음량 보정까지 적용된 완성 mp4**를 자동으로 만드는 로컬 웹 도구입니다. **캡컷은 필요 없습니다**(원하면 같은 편집이 담긴 캡컷 드래프트도 함께 만듭니다).
 [pycapcut](https://github.com/GuanYixuan/pyJianYingDraft) 으로 드래프트를 만들고, FastAPI + 정적 HTML 1장으로 동작합니다.
 
-## 실행
+## 실행 (비용 0원: 전부 내 PC에서 돌아갑니다)
+- **더블클릭**: Mac `start.command` · Windows `start.bat` · 터미널 `./run.sh` — 처음 한 번 자동 설치 후 브라우저가 열립니다(ffmpeg만 미리 설치).
+- **폰·외부에서 쓰기(선택, 무료)**: `./run.sh --tunnel` — 무료 Cloudflare 터널(`cloudflared` 설치 필요) + 자동 생성 비밀번호(`.password`). 영상은 내 PC에서만 처리되고 터널은 통로일 뿐입니다. PC가 켜져 있어야 접속됩니다.
+- 접속 보호(항상 켜짐): 다른 사이트가 보내는 쓰기 요청 차단, 허용되지 않은 호스트 차단, 비밀번호(`CAPCUT_PASSWORD`) 설정 시 로그인 필수·실패 5회/분 잠금.
+- 유료가 될 수 있는 유일한 항목은 Clef-omni(선택). Cloudflare 무료 플랜은 하루 10,000 Neurons까지 무료이고 초과하면 과금 없이 요청이 실패합니다(Workers Paid로 올리지 않는 한).
+
+수동 실행:
 ```bash
 cd capcut-agent
 pip install -r requirements.txt     # + ffmpeg 필요: brew install ffmpeg / winget install ffmpeg
