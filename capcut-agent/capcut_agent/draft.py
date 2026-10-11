@@ -45,9 +45,11 @@ def build(video, info: dict, plan: Plan, draft_root: Path, name: str, with_subs:
             if dur <= 0:
                 continue
             sc = (media.cover_ratio(src, plan.canvas) if plan.cover else 1.0) * c.scale
+            _, shift = media.focus_shift(src, plan.canvas, False, sc, getattr(c, "focus", None))      # CapCut scale 1.0 = fit
+            tx = shift / (plan.canvas[0] / 2)                                                           # 단위: 캔버스 폭의 절반
             script.add_segment(cc.VideoSegment(
                 mat, cc.Timerange(t, dur), source_timerange=cc.Timerange(src_s, dur), volume=c.volume,
-                clip_settings=cc.ClipSettings(scale_x=sc, scale_y=sc) if abs(sc - 1.0) > 1e-3 else None))
+                clip_settings=cc.ClipSettings(scale_x=sc, scale_y=sc, transform_x=tx) if (abs(sc - 1.0) > 1e-3 or abs(tx) > 1e-4) else None))
             t += dur
     total_us = t
     portrait = ch > cw

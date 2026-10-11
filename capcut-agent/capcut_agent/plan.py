@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from . import media, points as P, subtitles
+from . import media, points as P, subtitles, vision as V
 from .asr import Transcript
 from .cuts import Interval, remap_clamp
 from .subtitles import Sub
@@ -18,6 +18,7 @@ class Clip:
     scale: float = 1.0          # 줌(배율). 캔버스 리프레임 배율은 Plan.base_scale에서 곱한다
     volume: float = 1.0
     kind: str = "main"          # main | teaser
+    focus: float | None = None  # 얼굴의 가로 위치(0~1). 있으면 크롭·줌의 중심으로 쓴다(스마트 리프레임)
 
 
 @dataclass
@@ -81,7 +82,7 @@ def canvas_for(preset: dict, info: dict) -> tuple[tuple[int, int], float, bool]:
 
 def build(tr: Transcript, samples: np.ndarray, keep: list[Interval], info: dict, *, workflow: str,
           features: dict | None = None, off: set[str] | None = None, glossary: str = "",
-          sources: list | None = None) -> Plan:
+          sources: list | None = None, vision: dict | None = None) -> Plan:
     preset = P.PRESETS[workflow]
     f = {**preset["features"], **(features or {})}
     off = off or set()
@@ -90,7 +91,8 @@ def build(tr: Transcript, samples: np.ndarray, keep: list[Interval], info: dict,
 
     emph = P.detect_emphasis(tr, samples, keep, min_gap=preset["emphasis_gap"], per_min=preset["emphasis_per_min"],
                              extra_terms=terms) if f.get("emphasis") else []
-    hook = P.detect_hook(tr, samples, keep) if f.get("hook") else []
+    hook_bonus = (lambda s, e: 1.5 * (V.mean_over(vision, "hook", s, e) or 0.0)) if vision else None      # AI가 '시작으로 좋다'고 본 만큼 가산
+    hook = P.detect_hook(tr, samples, keep, bonus=hook_bonus) if f.get("hook") else []
     if f.get("chapters") and sources and len(sources) > 1:      # 여러 영상을 이어붙였으면 영상 하나 = 챕터 하나(파일 이름이 제목)
         chapters = [P.EditPoint(P._key("chapter", s.offset), "chapter", s.offset, s.end, f"{i:02d} {s.stem[:24]}", 0.0, True,
                                 {"title": s.stem[:24], "why": "영상 경계", "index": i}) for i, s in enumerate(sources, 1)]
@@ -120,6 +122,7 @@ def build(tr: Transcript, samples: np.ndarray, keep: list[Interval], info: dict,
                 pts.append(pt)
                 if key not in off:
                     c.volume = float(min(2.0, max(0.5, 10 ** (g / 20))))
+    clips = V.split_by_focus(clips, vision)                    # 얼굴이 움직이면 그 경계에서 프레이밍을 바꾼다
     # 훅 티저
     teaser = 0.0
     for h in hook:
@@ -131,6 +134,10 @@ def build(tr: Transcript, samples: np.ndarray, keep: list[Interval], info: dict,
             a, b = max(host[0], h.start - 0.05), min(host[1], h.end + 0.15)
             clips.insert(0, Clip(a, b, preset["zoom_scale"] if f.get("zoom") else 1.0, 1.0, "teaser"))
             teaser = b - a
+    if vision:                                                   # 티저 클립에도 얼굴 위치를 붙인다(본편 클립은 위에서 이미 붙음)
+        for c in clips:
+            if c.kind == "teaser":
+                c.focus = V.focus_at(vision, c.src_s, c.src_e)
     main_len = sum(c.src_e - c.src_s for c in clips if c.kind == "main")
     out_total = teaser + main_len
 

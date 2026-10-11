@@ -78,3 +78,13 @@ def scale_k(src: Src, canvas: tuple[int, int], cover: bool) -> float:
 def cover_ratio(src: Src, canvas: tuple[int, int]) -> float:
     """캡컷 클립 scale(1.0 = fit) 기준으로 cover가 되려면 곱해야 할 배율."""
     return scale_k(src, canvas, True) / scale_k(src, canvas, False)
+
+
+def focus_shift(src: Src, canvas: tuple[int, int], cover: bool, scale: float, focus: float | None) -> tuple[float, float]:
+    """(표시 폭, 얼굴을 가운데로 옮기는 이동량(px, +=이미지를 오른쪽으로)). 화면 밖이 드러나지 않게 제한한다."""
+    cw = canvas[0]
+    disp_w = scale_k(src, canvas, cover) * src.width * scale
+    if focus is None or disp_w <= cw + 1:
+        return disp_w, 0.0
+    limit = (disp_w - cw) / 2
+    return disp_w, max(-limit, min(limit, (0.5 - focus) * disp_w))

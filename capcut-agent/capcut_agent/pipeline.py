@@ -15,10 +15,10 @@ from pathlib import Path
 
 import numpy as np
 
-from . import audio, cuts as C, draft, filler, media, plan as PL, points as P, render as RD, subfile, subtitles
+from . import audio, clef as CL, cuts as C, draft, filler, media, plan as PL, points as P, render as RD, subfile, subtitles, vision as V
 from .asr import AsrService, Segment, Transcript, Word
 
-STAGES = [("merge", "영상 이어붙이기"), ("silence", "무음 감지"), ("asr", "대본 만들기 (음성 인식 / 자막 파일)"), ("filler", "잔말·NG 판정"), ("points", "편집 포인트 탐색"), ("draft", "드래프트 생성"), ("render", "영상 렌더링")]
+STAGES = [("merge", "영상 이어붙이기"), ("silence", "무음 감지"), ("asr", "대본 만들기 (음성 인식 / 자막 파일)"), ("filler", "잔말·NG 판정"), ("ai", "AI 영상 분석 (Clef-omni)"), ("points", "편집 포인트 탐색"), ("draft", "드래프트 생성"), ("render", "영상 렌더링")]
 TERMINAL = ("done", "error", "cancelled")
 
 
@@ -39,6 +39,8 @@ class Options:
     features: dict | None = None           # 편집 포인트별 on/off 덮어쓰기 (None = 프리셋)
     glossary: str = ""                     # "틀린표기=맞는표기" / "강조어" 줄 단위
     render: bool = True                    # 완성 mp4까지 자동 렌더 (캡컷 불필요)
+    ai: bool = False                       # Clef-omni로 영상 구간 분석 (영상 조각이 Cloudflare로 전송됨 → 기본 꺼짐)
+    ai_auto: bool = False                  # AI가 제안한 '나쁜 구간' 컷을 자동으로 적용 (기본은 제안만)
 
     def resolved(self) -> "Options":
         pr = P.PRESETS[self.workflow]["options"]
@@ -76,6 +78,8 @@ class Job:
     word_edits: dict = field(default_factory=dict)   # "세그먼트:단어" → 고친 글자 ("" = 자막/팝업에서 제외)
     queue_pos: int = 0
     sources: list = field(default_factory=list)      # 이어붙일 원본 영상들 (media.Src)
+    vision: dict | None = None                       # Clef-omni 분석 결과(구간별 지표)
+    vision_state: dict = field(default_factory=lambda: {"state": "idle", "pct": 0.0, "error": None})
 
     def emit(self, type_: str, **data) -> None:
         self.events.append({"i": len(self.events), "t": round(time.time(), 2), "type": type_, **data})
@@ -83,7 +87,7 @@ class Job:
     def public(self) -> dict:
         return {"id": self.id, "filename": self.filename, "status": self.status, "created": self.created,
                 "queue": self.queue_pos, "error": self.error, "result": self.result, "render": self.render,
-                "stages": [{"key": k, "label": l} for k, l in STAGES]}
+                "vision_state": self.vision_state, "stages": [{"key": k, "label": l} for k, l in STAGES]}
 
     def summary(self) -> dict:
         r = self.result or {}
@@ -100,7 +104,7 @@ class Job:
                      "cuts": [asdict(c) for c in self.cuts], "keep_marks": [list(k) for k in self.keep_marks],
                      "point_off": sorted(self.point_off), "word_edits": self.word_edits, "result": self.result,
                      "transcript": self.transcript.to_dict() if self.transcript else None,
-                     "sources": [s.to_dict() for s in self.sources],
+                     "sources": [s.to_dict() for s in self.sources], "vision": self.vision,
                      "render": self.render, "files": {k: str(v) for k, v in self.files.items()}}
             tmp = self.dir / "job.json.tmp"
             tmp.write_text(json.dumps(state, ensure_ascii=False), "utf-8")
@@ -156,6 +160,7 @@ class JobStore:
                 job.keep_marks = [tuple(k) for k in s.get("keep_marks", [])]
                 job.point_off, job.word_edits = set(s.get("point_off", [])), s.get("word_edits", {})
                 job.result = s.get("result")
+                job.vision = s.get("vision")
                 job.transcript = Transcript.from_dict(s["transcript"]) if s.get("transcript") else None
                 job.sources = [media.Src.from_dict(x) for x in s.get("sources", [])] or [media.Src(
                     job.filename, str(job.source), 0.0, job.info.get("duration", 0.0), job.info.get("width", 0), job.info.get("height", 0), job.info.get("fps", 30))]
@@ -163,6 +168,8 @@ class JobStore:
                 job.files = {k: Path(v) for k, v in (s.get("files") or {}).items()}
                 if job.status in ("queued", "running"):
                     job.status, job.error = "error", "서버가 재시작되어 처리가 중단됐어요. '다시 시도'를 누르면 이어서 처리해요 (음성 인식은 캐시를 써서 빨라요)."
+                if job.vision_state.get("state") == "running":
+                    job.vision_state = {"state": "idle", "pct": 0.0, "error": None}
                 if job.render.get("state") in ("running", "queued"):
                     job.render.update(state="error", error="서버가 재시작되어 렌더링이 중단됐어요. '다시 렌더링'을 눌러 주세요.")
                 job.emit("done" if job.status == "done" else job.status if job.status in ("cancelled",) else "error",
@@ -282,6 +289,20 @@ def _silence_cuts(speech, duration, o: Options) -> list[tuple[str, float, float,
     return out
 
 
+def apply_vision_cuts(job: Job, auto: bool) -> int:
+    """AI가 제안한 나쁜 구간을 컷 목록에 'AI' 종류로 넣는다. 확률 보정이 검증되지 않아 기본은 꺼진 제안."""
+    job.cuts = [c for c in job.cuts if c.kind != "ai"]
+    if not job.vision or job.vision.get("error"):
+        return 0
+    nid = max((c.id for c in job.cuts), default=-1) + 1
+    n = 0
+    for a, b, label in V.suggest_cuts(job.vision):
+        job.cuts.append(C.Cut(nid, "ai", a, b, label, enabled=auto))
+        nid += 1
+        n += 1
+    return n
+
+
 def preview_path(job: Job) -> Path:
     """편집 프리뷰로 재생할 파일: 여러 영상이면 이어붙인 저화질 합본, 하나면 원본."""
     p = job.dir / "preview.mp4"
@@ -339,7 +360,7 @@ def make_plan(job: Job, keep: list[C.Interval] | None = None, workflow: str | No
         job.samples = load_all_samples(job)
     return PL.build(edited(job), job.samples, keep, job.info, workflow=workflow or o.workflow,
                     features=features if features is not None else o.features, off=job.point_off, glossary=o.glossary,
-                    sources=job.sources)
+                    sources=job.sources, vision=job.vision if job.vision and not job.vision.get("error") else None)
 
 
 def write_draft(job: Job, plan: PL.Plan, draft_root: Path) -> dict:
@@ -351,10 +372,12 @@ def write_draft(job: Job, plan: PL.Plan, draft_root: Path) -> dict:
     path = draft.build(job.sources, job.info, plan, draft_root, name, job.options.subtitles)
     (job.dir / "subtitles.srt").write_text(subtitles.to_srt(plan.subs), "utf-8")
     main_len = C.total(keep)
-    counts = {k: sum(1 for c in job.cuts if c.kind == k and c.enabled) for k in ("silence", "filler", "ng", "user")}
+    counts = {k: sum(1 for c in job.cuts if c.kind == k and c.enabled) for k in ("silence", "filler", "ng", "user", "ai")}
     pcounts = {k: sum(1 for p in plan.points if p.kind == k and p.enabled) for k in P.KINDS if k != "highlight"}
     et = edited(job)
-    hl = P.detect_highlights(et, job.samples, keep, boundaries=media.boundaries(job.sources)) if job.options.workflow != "shorts" else []
+    vis = job.vision if job.vision and not job.vision.get("error") else None
+    hb = (lambda s, e: 2.0 * (V.mean_over(vis, "selfc", s, e) or 0.0) + 0.5 * (V.mean_over(vis, "hook", s, e) or 0.0)) if vis else None
+    hl = P.detect_highlights(et, job.samples, keep, boundaries=media.boundaries(job.sources), bonus=hb) if job.options.workflow != "shorts" else []
     prev = job.result or {}
     return {
         "duration": round(dur, 3), "out_duration": round(plan.out_duration, 3), "saved": round(dur - main_len, 3),
@@ -363,7 +386,7 @@ def write_draft(job: Job, plan: PL.Plan, draft_root: Path) -> dict:
         "cuts": [c.to_dict() for c in job.cuts], "keep_marks": [list(k) for k in job.keep_marks],
         "counts": counts, "point_counts": pcounts, "subtitle_count": len(plan.subs),
         "points": [p.to_dict() for p in plan.points], "highlights": [h.to_dict() for h in hl],
-        "preview": plan.preview, "chapters_text": plan.chapters_text,
+        "preview": plan.preview, "chapters_text": plan.chapters_text, "vision": V.public(job.vision, job.sources),
         "workflow": job.options.workflow, "canvas": list(plan.canvas),
         "draft_path": str(path), "draft_name": name, "info": job.info, "transcript": overlay_dict(job.transcript, job.word_edits),
         "word_edits": job.word_edits,
@@ -447,7 +470,7 @@ async def render_bg(job: Job, sched: Scheduler | None = None) -> None:
     await render_slot(job, sched)
 
 
-async def run(job: Job, asr: AsrService, draft_root: Path, sched: Scheduler | None = None) -> None:
+async def run(job: Job, asr: AsrService, draft_root: Path, sched: Scheduler | None = None, clef=None) -> None:
     o = job.options.resolved()
     job.options = o
     job.status, job.error = "running", None
@@ -505,6 +528,31 @@ async def run(job: Job, asr: AsrService, draft_root: Path, sched: Scheduler | No
             job.cuts = [C.Cut(i, k, s, e, l) for i, (k, s, e, l) in enumerate(found)]
         await _stage(job, "filler", s_filler)
 
+        async def s_ai():
+            if not o.ai:
+                return "skipped"
+            client = clef() if clef else None
+            if client is None:                              # 계정 미설정: 작업은 계속하고 이유만 남긴다
+                job.vision = {"error": "Clef-omni 계정이 설정되지 않아 AI 분석을 건너뛰었어요 (설정에서 Cloudflare 계정 ID·토큰을 입력하세요)"}
+                job.emit("warning", message=job.vision["error"])
+                return "skipped"
+            last = [-1]
+
+            def prog(f: float) -> None:
+                if int(f * 100) != last[0]:
+                    last[0] = int(f * 100)
+                    job.emit("progress", key="ai", pct=last[0])
+            try:
+                job.vision = await asyncio.to_thread(V.analyze, job.sources, client, progress=prog, cancel=job.cancel_flag)
+            except V.Cancelled:
+                raise JobCancelled()
+            except CL.ClefError as e:                       # AI 오류가 편집 전체를 막지 않게: 경고만 남기고 계속
+                job.vision = {"error": f"AI 분석 실패: {e}"}
+                job.emit("warning", message=job.vision["error"])
+                return "skipped"
+            apply_vision_cuts(job, o.ai_auto)
+        await _stage(job, "ai", s_ai)
+
         async def s_points():
             meta["plan"] = await asyncio.to_thread(make_plan, job)
         await _stage(job, "points", s_points)
@@ -536,7 +584,7 @@ async def run(job: Job, asr: AsrService, draft_root: Path, sched: Scheduler | No
         job.save()
 
 
-async def run_queued(job: Job, asr: AsrService, draft_root: Path, sched: Scheduler) -> None:
+async def run_queued(job: Job, asr: AsrService, draft_root: Path, sched: Scheduler, clef=None) -> None:
     """큐에 넣고 순번이 오면 실행. 대기 중 취소하면 실행하지 않는다."""
     job.status, job.error = "queued", None
     job.events.clear()
@@ -555,7 +603,7 @@ async def run_queued(job: Job, asr: AsrService, draft_root: Path, sched: Schedul
                 job.emit("cancelled")
                 job.save()
                 return
-            await run(job, asr, draft_root, sched)
+            await run(job, asr, draft_root, sched, clef)
     finally:
         if job in sched.waiting:
             sched.waiting.remove(job)
@@ -577,6 +625,29 @@ def cancel(job: Job, sched: Scheduler | None) -> str:
         job.emit("cancelled")
         job.save()
     return "cancelled"
+
+
+async def run_vision(job: Job, client, draft_root: Path, sched: Scheduler | None = None, auto: bool = False) -> None:
+    """완료된 작업에 나중에 AI 분석을 돌린다. 끝나면 컷 제안·리프레임을 반영해 드래프트와 완성본을 다시 만든다."""
+    job.vision_state = {"state": "running", "pct": 0.0, "error": None}
+
+    def prog(f: float) -> None:
+        job.vision_state["pct"] = round(f * 100, 1)
+    try:
+        job.vision = await asyncio.to_thread(V.analyze, job.sources, client, progress=prog, cancel=job.cancel_flag)
+        apply_vision_cuts(job, auto)
+        job.vision_state = {"state": "running", "pct": 100.0, "error": None, "applying": True}     # 분석은 끝났고 결과를 반영하는 중
+        job.save()
+        await rebuild(job, draft_root, {}, job.keep_marks, sched=sched)
+        job.vision_state = {"state": "done", "pct": 100.0, "error": None}                          # 반영까지 끝난 뒤에만 '완료'(화면이 옛 결과를 읽지 않게)
+    except V.Cancelled:
+        job.vision_state = {"state": "idle", "pct": 0.0, "error": None}
+    except CL.ClefError as e:
+        job.vision_state = {"state": "error", "pct": 0.0, "error": str(e)}
+    except Exception as e:  # noqa: BLE001
+        job.vision_state = {"state": "error", "pct": 0.0, "error": f"{type(e).__name__}: {e}"}
+    finally:
+        job.save()
 
 
 async def rebuild(job: Job, draft_root: Path, toggles: dict[int, bool], keep_marks: list[tuple[float, float]],

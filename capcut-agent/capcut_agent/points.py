@@ -167,7 +167,7 @@ def hook_score(seg: Segment, z_loud: float = 0.0) -> tuple[float, str]:
 
 
 def detect_hook(tr: Transcript, samples: np.ndarray, keep: list[Interval], *, min_total: float = 25.0,
-                skip_head: float = 8.0, threshold: float = 3.0) -> list[EditPoint]:
+                skip_head: float = 8.0, threshold: float = 3.0, bonus=None) -> list[EditPoint]:
     total = sum(e - s for s, e in keep)
     if total < min_total:
         return []
@@ -180,6 +180,10 @@ def detect_hook(tr: Transcript, samples: np.ndarray, keep: list[Interval], *, mi
         if remap_clamp(seg.start, keep) < skip_head:         # 이미 앞부분에 있는 문장은 티저 의미 없음
             continue
         sc, why = hook_score(seg, z)
+        b = bonus(seg.start, seg.end) if bonus else 0.0
+        if b > 0.05:
+            sc += b
+            why += "+AI판단"
         if sc >= threshold and (best is None or sc > best.score):
             best = EditPoint(_key("hook", seg.start), "hook", seg.words[0].start, seg.words[-1].end,
                              seg.text.strip()[:28], sc, True, {"why": why, "text": seg.text.strip()})
@@ -279,7 +283,7 @@ def clip_gain_db(samples: np.ndarray, s: float, e: float, target_db: float = -20
 
 # ---- 6) 숏츠 후보 -----------------------------------------------------------------------------
 def detect_highlights(tr: Transcript, samples: np.ndarray, keep: list[Interval], *, lo: float = 20.0, hi: float = 60.0,
-                      top: int = 5, boundaries: list[float] | None = None) -> list[EditPoint]:
+                      top: int = 5, boundaries: list[float] | None = None, bonus=None) -> list[EditPoint]:
     segs = [s for s in tr.segments if s.words]
     if not segs:
         return []
@@ -305,7 +309,7 @@ def detect_highlights(tr: Transcript, samples: np.ndarray, keep: list[Interval],
             if not closed:
                 continue
             nums = sum(1 for k in range(i, j + 1) if T.has_digit(segs[k].text))
-            score = sc0 + 0.5 * nums + (0.5 if nxt_gap >= 1.5 else 0.0)
+            score = sc0 + 0.5 * nums + (0.5 if nxt_gap >= 1.5 else 0.0) + (bonus(s0.start, segs[j].end) if bonus else 0.0)
             cands.append(EditPoint(_key("highlight", s0.start), "highlight", s0.words[0].start, segs[j].words[-1].end,
                                    s0.text.strip()[:26], score, True,
                                    {"why": why0, "length": round(dur, 1), "title": s0.text.strip()}))

@@ -111,7 +111,10 @@ def clip_filters(info: dict, plan: Plan, canvas: tuple[int, int], c) -> tuple[st
     sw, sh = even(w * k), even(h * k)
     v = [f"scale={sw}:{sh}:flags=bicubic"]
     if sw > cw or sh > ch:
-        v.append(f"crop={min(sw, cw)}:{min(sh, ch)}")
+        cropw, croph = min(sw, cw), min(sh, ch)
+        fx = getattr(c, "focus", None)
+        x = (sw - cropw) / 2 if (fx is None or sw <= cw) else max(0.0, min(sw - cropw, fx * sw - cropw / 2))   # 얼굴이 크롭 가운데 오도록
+        v.append(f"crop={cropw}:{croph}:{int(round(x))}:{int(round((sh - croph) / 2))}")
     if sw < cw or sh < ch:
         v.append(f"pad={cw}:{ch}:(ow-iw)/2:(oh-ih)/2:black")
     v += [f"fps={info['fps']}", "setsar=1", "format=yuv420p"]

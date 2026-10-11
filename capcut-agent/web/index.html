@@ -18,7 +18,9 @@ input[type=checkbox]{accent-color:var(--acc)}
 body{background:var(--bg);color:var(--text);font:14px/1.55 -apple-system,"Apple SD Gothic Neo","Pretendard","Malgun Gothic",system-ui,sans-serif;
   font-variant-numeric:tabular-nums;min-height:100vh}
 .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 64px}
-header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-bottom:20px;border-bottom:1px solid var(--line)}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px 16px;flex-wrap:wrap;padding-bottom:20px;border-bottom:1px solid var(--line)}
+header>.row button{padding:4px 12px;font-size:13px}
+header>.chips{order:3;width:100%}
 h1{font-size:17px;font-weight:600;letter-spacing:-.01em}
 h1 small{color:var(--mute);font-weight:400;font-size:13px;margin-left:8px}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
@@ -160,6 +162,17 @@ input.winp{background:#0f0f0f;color:var(--text);border:1px solid var(--acc);bord
 .srow .sb.warn{color:var(--warn)}
 .srow button{padding:1px 8px;font-size:12px}
 .srow .no{font:12px var(--mono);color:var(--mute)}
+dialog{margin:auto;background:var(--card);color:var(--text);border:1px solid var(--line2);border-radius:12px;padding:22px;max-width:520px;width:calc(100% - 32px)}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog input[type=text],dialog input[type=password],.in{width:100%;background:#0f0f0f;color:var(--text);border:1px solid var(--line2);border-radius:6px;padding:8px;font:13px var(--mono)}
+.refrow{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line);font-size:13px}
+.refrow .mt{font:12px var(--mono);color:var(--mute)}
+.refrow button{padding:2px 10px;font-size:12px}
+.tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.warnt{color:var(--warn)}
+.reasons{margin:8px 0 0 18px;padding:0;font-size:13px;color:var(--mute);line-height:1.7}
+#aicard .tag{font-size:11px}
+.sbar{display:grid;grid-template-columns:1fr auto;gap:10px;font-size:12px;padding:3px 0}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1c1c1c;border:1px solid var(--line2);padding:8px 16px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s}
 #toast.show{opacity:1}
 </style>
@@ -169,7 +182,21 @@ input.winp{background:#0f0f0f;color:var(--text);border:1px solid var(--acc);bord
   <header>
     <h1>캡컷 에이전트<small>올리면 컷·자막·편집까지 끝낸 mp4가 나와요</small></h1>
     <div class="chips" id="chips" aria-label="환경 점검"></div>
+    <div class="row"><button id="b-refs" type="button">레퍼런스</button><button id="b-ai" type="button">AI 설정</button></div>
   </header>
+
+  <dialog id="dlg-ai">
+    <h2 style="margin-bottom:6px">AI 영상 분석 연결 <span class="hint">Cloudflare Clef-omni</span></h2>
+    <p class="hint" style="margin-bottom:12px">얼굴 위치를 따라 크롭하고, 흔들림·어두움·더듬음 같은 나쁜 구간을 제안하고, 레퍼런스 스타일을 읽는 데 씁니다. 기본은 꺼져 있고, 켠 작업만 사용해요.</p>
+    <label class="f">계정 ID<input type="text" id="ai-acct" autocomplete="off" placeholder="Cloudflare 계정 ID"></label>
+    <label class="f" style="margin-top:10px">API 토큰 <span class="hint">(Workers AI 권한 · 저장된 값은 보여주지 않아요)</span><input type="password" id="ai-token" autocomplete="off" placeholder="비워 두면 기존 토큰 유지"></label>
+    <div class="hint" id="ai-status" style="margin:10px 0"></div>
+    <ul class="reasons" style="margin-top:0"><li><b>무엇이 전송되나</b>: 영상을 8초 단위(480p, 소리 포함)로 잘라 Cloudflare로 보내요. 대본·자막 글자는 보내지 않아요.</li>
+      <li><b>비용</b>: 입력 100만 토큰당 $0.15 · 영상 1분에 약 $0.002 (문서 가격 기준 추정). 같은 영상 조각은 캐시해서 다시 과금되지 않아요.</li>
+      <li><b>저장</b>: 토큰은 이 컴퓨터의 <code>workspace/settings.json</code>(권한 600)에만 저장돼요.</li></ul>
+    <div class="row" style="margin-top:14px"><button class="pri" id="ai-save" type="button">저장</button><button id="ai-test" type="button">연결 테스트</button><button id="ai-clear" type="button">연결 해제</button><button id="ai-close" type="button">닫기</button></div>
+    <div class="hint" id="ai-msg" style="margin-top:10px"></div>
+  </dialog>
 
   <!-- 1. 업로드 -->
   <section id="s-idle">
@@ -203,6 +230,8 @@ input.winp{background:#0f0f0f;color:var(--text);border:1px solid var(--acc);bord
           <textarea id="o-gl" placeholder="채권 관리=채권관리&#10;대위변제"></textarea></label>
         <label class="f chk"><input type="checkbox" id="o-sub" checked> 자막 생성</label>
         <label class="f chk"><input type="checkbox" id="o-render" checked> 완성 mp4 자동 렌더링 <span class="hint">(끄면 캡컷 드래프트만)</span></label>
+        <label class="f chk" style="grid-column:1/-1"><input type="checkbox" id="o-ai"> AI 영상 분석 (Clef-omni) <span class="hint">얼굴 따라 크롭 · 나쁜 구간 제안 · 훅/숏츠 후보 보정 — 영상 조각이 Cloudflare로 전송돼요 (약 $0.002/분)</span></label>
+        <label class="f chk" style="grid-column:1/-1"><input type="checkbox" id="o-aiauto"> AI가 제안한 나쁜 구간을 자동으로 자르기 <span class="hint">(기본: 제안만 하고 꺼 둠 — AI 확률의 신뢰도는 아직 검증 전)</span></label>
       </div>
     </details>
     <div id="recent" class="hide">
@@ -252,6 +281,13 @@ input.winp{background:#0f0f0f;color:var(--text);border:1px solid var(--acc);bord
           </div>
           <div id="rbar"><i></i></div>
         </div>
+        <div class="card" id="aicard">
+          <div class="row" style="justify-content:space-between"><b>AI 영상 분석 <span class="hint">Clef-omni</span></b><span id="aistate" class="tc"></span></div>
+          <div id="aibody" class="hint" style="margin-top:8px"></div>
+          <div id="aisrc" style="margin-top:8px"></div>
+          <div class="row" style="margin-top:10px"><button class="pri" id="airun" type="button">AI로 분석하기</button><button id="aiall" class="hide" type="button">제안 컷 모두 켜기</button><button id="refbtn" type="button">비슷한 레퍼 찾기</button></div>
+          <div id="reflist" class="hide" style="margin-top:10px"></div>
+        </div>
         <div class="card">
           <div class="stats">
             <div><div class="n" id="st-orig">-</div><div class="l">원본</div></div>
@@ -290,6 +326,19 @@ input.winp{background:#0f0f0f;color:var(--text);border:1px solid var(--acc);bord
       </div>
     </div>
   </section>
+  <!-- 4. 레퍼런스 라이브러리 -->
+  <section id="s-refs" class="hide">
+    <div class="row" style="margin-top:24px"><button id="refs-back" type="button">← 돌아가기</button><h2 style="margin:0">레퍼런스 라이브러리</h2></div>
+    <p class="hint" style="margin:10px 0">내가 모아 둔 잘 만든 영상을 넣어 두면, 컷 속도·무음 비율은 직접 재고, (선택) AI로 큰 자막·팝업·줌 같은 화면 요소까지 읽어서 <b>내 스타일</b>로 저장해요. 인터넷에서 영상을 찾아 주지는 않아요 — 직접 받아 둔 영상을 넣어 주세요.</p>
+    <div class="card"><div class="row"><button class="pri" id="rbtn" type="button">레퍼 영상 추가</button><input type="file" id="rfile" multiple accept=".mp4,.mov,.m4v" class="hide">
+      <label class="f chk"><input type="checkbox" id="r-ai"> AI로 화면 요소까지 분석 <span class="hint">(Clef-omni · 영상 조각이 Cloudflare로 전송돼요)</span></label></div></div>
+    <div class="card" style="margin-top:14px"><h2>내 레퍼 <span class="tc" id="rn"></span></h2><div id="rlist2"></div>
+      <div class="row" style="margin-top:12px"><input class="in" id="stname" placeholder="스타일 이름 (예: 빠른 숏폼)" style="max-width:260px"><button id="stprev" type="button">선택한 레퍼로 스타일 만들기</button></div>
+      <div id="stylebox" class="hide" style="margin-top:12px"></div></div>
+    <div class="card" style="margin-top:14px"><h2>레퍼 안에서 찾기 <span class="hint">AI 사용 · 내 레퍼 구간에 질문을 던져요</span></h2>
+      <div class="row"><input class="in" id="rq" placeholder="예: 큰 노란 자막이 나오고 컷이 빠른 영상" style="flex:1;min-width:220px"><button id="rqgo" type="button">찾기</button></div><div id="rqres" style="margin-top:10px"></div></div>
+    <div class="card" style="margin-top:14px"><h2>내 스타일</h2><div id="mypresets" class="hint">아직 없어요</div></div>
+  </section>
 </div>
 <div id="selbar" class="hide"><span id="seltxt"></span><button id="seldel" class="pri" type="button">삭제 (컷)</button><button id="selx" type="button">취소</button></div>
 <div id="toast" role="status"></div>
@@ -299,13 +348,13 @@ input.winp{background:#0f0f0f;color:var(--text);border:1px solid var(--acc);bord
 const $ = s => document.querySelector(s);
 const fmt = t => { t = Math.max(0, t); return Math.floor(t/60) + ":" + String(Math.floor(t%60)).padStart(2,"0"); };
 const fmt1 = t => t.toFixed(1) + "s";
-const KIND = {silence:"무음", filler:"잔말", ng:"NG", user:"직접"};
+const KIND = {silence:"무음", filler:"잔말", ng:"NG", user:"직접", ai:"AI"};
 const MIN_KEEP = 0.35;                       // 서버(cuts.compute_keep)와 동일
 let W = {workflow:'longform', presets:{}, features:{}, aggDirty:false};
 let S = {edits:{}, pend:{}, newCuts:[], tmpId:0, selIdx:[], pts:[], ptChange:{}, ptFilter:'all', job:null, res:null, cuts:[], marks:[], markStart:null, skip:true, words:[], dirty:false};
 
 function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toast.h); toast.h=setTimeout(()=>t.classList.remove("show"),2200); }
-function show(id){ for (const s of ["idle","proc","res"]) $("#s-"+s).classList.toggle("hide", s!==id); if (id==="idle") loadRecent(); }
+function show(id){ for (const s of ["idle","proc","res","refs"]) $("#s-"+s).classList.toggle("hide", s!==id); if (id==="idle") loadRecent(); }
 
 /* ---------- 환경 점검 (Step 0) ---------- */
 fetch("/api/env").then(r=>r.json()).then(e=>{
@@ -320,6 +369,7 @@ fetch("/api/env").then(r=>r.json()).then(e=>{
 /* ---------- 워크플로 선택 ---------- */
 const FEAT = {hook:"오프닝 훅", zoom:"리듬 줌", emphasis:"강조 팝업", chapters:"챕터", loudness:"음량 균일화", enhance:"음질 보정"};
 const WF_DESC = {shorts:"세로 9:16 · 짧은 컷 · 큰 자막", longform:"가로 16:9 · 훅 + 챕터", lecture:"설명·교육 · 챕터 + 용어 강조"};
+const wfDesc = (id, v) => WF_DESC[id] || (v.custom ? `내 레퍼 스타일 · ${v.canvas}` : "");
 fetch("/api/presets").then(r=>r.json()).then(p=>{ W.presets = p; pickWf(W.workflow); });
 function pickWf(k){
   W.workflow = k; const pr = W.presets[k]; if (!pr) return;
@@ -327,7 +377,7 @@ function pickWf(k){
   $("#o-min").placeholder = pr.options.min_silence + " (프리셋)"; $("#o-pad").placeholder = pr.options.pad + " (프리셋)";
   if (!W.aggDirty) $("#o-agg").checked = pr.options.aggressive;
   $("#wf").innerHTML = Object.entries(W.presets).map(([id,v]) => `<button type="button" role="radio" aria-pressed="${id===k}" data-id="${id}">
-    <b>${v.label}</b><span>${WF_DESC[id]||""}</span><div class="tags">${Object.keys(FEAT).map(f=>`<i class="tag ${v.features[f]?"on":""}">${FEAT[f]}</i>`).join("")}</div></button>`).join("");
+    <b>${esc(v.label)}</b><span>${wfDesc(id, v)}</span><div class="tags">${Object.keys(FEAT).map(f=>`<i class="tag ${v.features[f]?"on":""}">${FEAT[f]}</i>`).join("")}</div></button>`).join("");
   renderFeats();
 }
 function renderFeats(){
@@ -415,6 +465,8 @@ function send(){
   fd.append("features", JSON.stringify(W.features));
   fd.append("glossary", $("#o-gl").value);
   fd.append("render", $("#o-render").checked);
+  fd.append("ai", $("#o-ai").checked);
+  fd.append("ai_auto", $("#o-aiauto").checked);
   const label = vids[0].name + (vids.length > 1 && Q.mode === "merge" ? ` 외 ${vids.length-1}개` : "");
   const x = new XMLHttpRequest();
   x.open("POST", "/api/jobs");
@@ -432,27 +484,28 @@ function send(){
 }
 
 /* ---------- 진행 (SSE stepper) ---------- */
-const STEPS = [["merge","영상 이어붙이기"],["silence","무음 감지"],["asr","대본 만들기 (음성 인식 / 자막 파일)"],["filler","잔말·NG 판정"],["points","편집 포인트 탐색"],["draft","캡컷 드래프트 생성"],["render","영상 렌더링 (완성 mp4)"]];
-let st_pct = null;
+const STEPS = [["merge","영상 이어붙이기"],["silence","무음 감지"],["asr","대본 만들기 (음성 인식 / 자막 파일)"],["filler","잔말·NG 판정"],["ai","AI 영상 분석 (Clef-omni)"],["points","편집 포인트 탐색"],["draft","캡컷 드래프트 생성"],["render","영상 렌더링 (완성 mp4)"]];
+let stPct = {};
 function renderSteps(state){
   $("#steps").innerHTML = STEPS.map(([k,l]) => {
     const s = state[k] || {}; const cls = s.state || "";
     const dot = cls==="done" ? "ok" : cls==="running" ? "run" : "";
-    const t = cls==="done" ? s.sec.toFixed(1)+"s" : cls==="skipped" ? "건너뜀" : cls==="running" ? (k==="render" && st_pct!=null ? st_pct+"%" : "처리 중") : "대기";
+    const t = cls==="done" ? s.sec.toFixed(1)+"s" : cls==="skipped" ? "건너뜀" : cls==="running" ? (stPct[k]!=null ? stPct[k]+"%" : "처리 중") : "대기";
     return `<div class="step ${cls==="running"?"run":cls}"><i class="dot ${dot}"></i><span>${l}</span><span class="t">${t}</span></div>`;
   }).join("");
 }
 function watch(id, name){
   S.job = id; S.jobName = name; show("proc"); $("#pname").textContent = name; $("#err").textContent = "";
   $("#retry").classList.add("hide"); $("#retry2").classList.add("hide"); $("#cancel").classList.remove("hide"); $("#qinfo").classList.add("hide");
-  const st = {}; st_pct = null; renderSteps(st);
+  const st = {}; stPct = {}; renderSteps(st);
   const fail = msg => { $("#err").textContent = msg; $("#cancel").classList.add("hide"); $("#retry").classList.remove("hide"); $("#retry2").classList.remove("hide"); $("#qinfo").classList.add("hide"); };
   const es = new EventSource(`/api/jobs/${id}/events`);
   es.onmessage = m => {
     const ev = JSON.parse(m.data);
     if (ev.type === "stage") { $("#qinfo").classList.add("hide"); st[ev.key] = ev; renderSteps(st); }
     else if (ev.type === "queue") { if (ev.pos > 0) { $("#qinfo").textContent = ev.pos === 1 ? "대기 중 — 다음 차례예요" : `대기 중 — 앞에 ${ev.pos-1}건이 있어요`; $("#qinfo").classList.remove("hide"); } }
-    else if (ev.type === "progress") { st_pct = ev.pct; renderSteps(st); }
+    else if (ev.type === "progress") { stPct[ev.key || "render"] = ev.pct; renderSteps(st); }
+    else if (ev.type === "warning") { toast(ev.message); }
     else if (ev.type === "done") { es.close(); load(id); }
     else if (ev.type === "cancelled") { es.close(); fail("취소했어요"); }
     else if (ev.type === "error") { es.close(); fail("처리 실패 — " + ev.message); }
@@ -520,7 +573,7 @@ async function load(id){
   $("#asrinfo").textContent = `대본: ${tsrc} · 무음 기준 ${S.res.threshold_db}dB · 자막 ${S.res.subtitle_count}줄`;
   const srcs = S.res.sources || [];
   $("#srcinfo").textContent = srcs.length > 1 ? "구성: " + srcs.map(s => `${s.name.replace(/\.[^.]+$/, "")} (${fmt(s.offset)}${s.sub ? ", 자막파일" : ""})`).join(" → ") : "";
-  buildWords(); show("res"); setFinal(false); refresh(); renderExtras(); renderRender(j.render); pollRender();
+  S.vstate = j.vision_state; buildWords(); show("res"); setFinal(false); refresh(); renderExtras(); renderRender(j.render); pollRender(); renderAI(); $("#reflist").classList.add("hide"); if (j.vision_state.state === "running") pollVision();
 }
 
 function computeKeep(){            // 서버 cuts.compute_keep과 동일 로직 → 토글 즉시 반영
@@ -549,7 +602,7 @@ function refresh(){
   $("#st-save").textContent = Math.max(0, Math.round((D-out)/D*100)) + "%";
   $("#apply").disabled = !S.dirty;
   $("#apply").textContent = S.dirty ? "드래프트 갱신 (변경됨)" : "드래프트 갱신";
-  renderCuts(); renderMarks(); markWords(); renderPoints(); draw();
+  renderCuts(); renderMarks(); markWords(); renderPoints(); draw(); renderAI();
 }
 
 function renderCuts(){
@@ -822,7 +875,156 @@ addEventListener("keydown", e => {
     S.marks.push([S.markStart, vid.currentTime]); S.markStart = null; S.dirty = true; refresh(); toast("이 구간은 컷에서 제외돼요");
   }
 });
+
+/* ---------- AI 설정 (Clef-omni) ---------- */
+let AIS = {configured:false};
+async function loadAI(){
+  try { AIS = await (await fetch("/api/clef/settings")).json(); } catch(_) {}
+  $("#b-ai").textContent = AIS.configured ? "AI 설정 · 연결됨" : "AI 설정";
+  $("#ai-acct").value = AIS.account_id || "";
+  $("#ai-status").textContent = AIS.configured ? `연결 정보가 저장돼 있어요 (토큰 ${AIS.token_hint}${AIS.from_env ? ", 환경변수" : ""})` : "아직 연결하지 않았어요";
+}
+const aimsg = (t, bad) => { $("#ai-msg").textContent = t; $("#ai-msg").className = "hint" + (bad ? " warnt" : ""); };
+$("#b-ai").onclick = async () => { await loadAI(); aimsg(""); $("#ai-token").value = ""; $("#dlg-ai").showModal(); };
+$("#ai-close").onclick = () => $("#dlg-ai").close();
+$("#ai-save").onclick = async () => {
+  const r = await fetch("/api/clef/settings", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({account_id:$("#ai-acct").value, token:$("#ai-token").value || null})});
+  if (!r.ok) return aimsg((await r.json()).detail || "저장 실패", true);
+  $("#ai-token").value = ""; await loadAI(); aimsg("저장했어요. '연결 테스트'로 확인해 보세요.");
+};
+$("#ai-test").onclick = async () => {
+  aimsg("확인 중…"); const r = await fetch("/api/clef/test", {method:"POST"}); const d = await r.json().catch(()=>({}));
+  if (!r.ok) return aimsg(d.detail || "연결 실패", true);
+  aimsg(d.ok ? `연결됐어요 (${d.latency_ms}ms)` : "응답이 이상해요", !d.ok);
+};
+$("#ai-clear").onclick = async () => { await fetch("/api/clef/settings", {method:"DELETE"}); await loadAI(); aimsg("연결을 해제했어요"); };
+$("#o-ai").addEventListener("change", async e => {
+  if (!e.target.checked) return;
+  if (!AIS.configured) { e.target.checked = false; toast("먼저 'AI 설정'에서 Cloudflare 계정을 연결하세요"); return $("#b-ai").click(); }
+  if (!confirm("AI 영상 분석을 켜면 영상이 8초 단위(480p, 소리 포함)로 잘려 Cloudflare Workers AI로 전송돼요.\\n회사·고객 정보가 담긴 영상이면 신중히 판단하세요.\\n\\n켤까요?")) e.target.checked = false;
+});
+
+/* ---------- 결과 화면: AI 카드 ---------- */
+function renderAI(){
+  const v = S.res.vision, vs = S.vstate || {state:"idle"};
+  const running = vs.state === "running";
+  $("#aistate").textContent = running ? (vs.applying ? "결과 반영 중…" : `분석 중 ${Math.round(vs.pct||0)}%`) : "";
+  $("#airun").disabled = running; $("#airun").textContent = v && !v.error ? "다시 분석하기" : "AI로 분석하기";
+  let body = "";
+  if (vs.state === "error") body = `<span class="warnt">AI 분석 실패 — ${esc(vs.error||"")}</span>`;
+  else if (v && v.error) body = `<span class="warnt">${esc(v.error)}</span>`;
+  else if (v) body = `구간 ${v.windows}개 분석 · 얼굴 따라 크롭 <b>${v.reframe ? "켜짐" : "해당 없음"}</b> · 사용 약 $${(v.cost_usd||0).toFixed(3)}<br>AI 제안 컷 ${v.suggestions.length}개 ${v.suggestions.length ? "(기본 꺼짐 — 컷 목록의 'AI' 항목)" : ""}`;
+  else body = "아직 분석하지 않았어요. 켜면 영상 조각이 Cloudflare로 전송되고, 비용이 들어요(분석 전에 예상 금액을 보여드려요).";
+  $("#aibody").innerHTML = body;
+  $("#aisrc").innerHTML = v && !v.error ? v.sources.map(s => `<div class="sbar"><span>${esc(s.name)}</span><span class="tc">${s.score}점 · 얼굴 ${Math.round(s.face*100)}% · 에너지 ${s.energy} · 흔들림 ${s.shaky}</span></div>`).join("") : "";
+  $("#aiall").classList.toggle("hide", !S.cuts.some(c => c.kind === "ai" && !c.enabled));
+}
+$("#airun").onclick = async () => {
+  if (!AIS.configured) { toast("먼저 'AI 설정'에서 Cloudflare 계정을 연결하세요"); return $("#b-ai").click(); }
+  const est = await (await fetch(`/api/jobs/${S.job}/vision/estimate`)).json();
+  if (!confirm(`${est.windows}개 구간(${Math.round(est.seconds)}초)을 분석해요.\\n${est.sends}\\n예상 비용 약 $${est.cost_usd.toFixed(3)} (추정)\\n\\n진행할까요?`)) return;
+  const r = await fetch(`/api/jobs/${S.job}/vision`, {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"});
+  if (!r.ok) return toast((await r.json()).detail || "시작할 수 없어요");
+  S.vstate = {state:"running", pct:0}; renderAI(); pollVision();
+};
+let visT = null;
+function pollVision(){
+  clearTimeout(visT);
+  visT = setTimeout(async () => {
+    try {
+      const j = await (await fetch(`/api/jobs/${S.job}`)).json(); S.vstate = j.vision_state;
+      if (j.vision_state.state === "running") { renderAI(); return pollVision(); }
+      if (j.vision_state.state === "done") { toast("AI 분석이 끝났어요 — 반영해서 다시 만드는 중이에요"); await load(S.job); return; }
+      renderAI();
+    } catch(_) { pollVision(); }
+  }, 1200);
+}
+$("#aiall").onclick = () => { S.cuts.forEach(c => { if (c.kind === "ai") c.enabled = true; }); S.dirty = true; refresh(); toast("AI 제안 컷을 모두 켰어요 — '드래프트 갱신'으로 반영"); };
+
+/* 비슷한 레퍼 → 이 스타일 적용 */
+$("#refbtn").onclick = async () => {
+  const d = await (await fetch(`/api/jobs/${S.job}/refs/similar`)).json(), box = $("#reflist");
+  box.classList.remove("hide");
+  box.innerHTML = d.results.length ? `<div class="hint">내 영상(${d.profile.aspect}, ${fmt(d.profile.duration)})과 형식이 비슷한 순서</div>` + d.results.slice(0,5).map(r =>
+    `<div class="refrow" style="grid-template-columns:1fr auto"><div><div>${esc(r.name)} <span class="tc">${Math.round(r.score*100)}점</span></div><div class="mt">${r.reasons.map(esc).join(" · ") || "비슷한 점이 적어요"} · 분당 컷 ${r.shots_per_min}</div></div>
+     <button data-id="${r.id}" data-name="${esc(r.name)}" class="applyref" type="button">이 스타일로 다시 만들기</button></div>`).join("")
+    : `<div class="hint">분석이 끝난 레퍼가 없어요. 위쪽 '레퍼런스'에서 영상을 추가하세요.</div>`;
+};
+$("#reflist").addEventListener("click", async e => {
+  const b = e.target.closest(".applyref"); if (!b) return;
+  const pv = await (await fetch("/api/refs/style", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ref_ids:[b.dataset.id], name:b.dataset.name})})).json();
+  if (!confirm("이 값으로 스타일을 만들어 다시 편집해요:\\n\\n· " + pv.reasons.join("\\n· ") + "\\n\\n(컷 감도는 기존 그대로예요)\\n진행할까요?")) return;
+  const made = await (await fetch("/api/presets/from-refs", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ref_ids:[b.dataset.id], name:b.dataset.name.replace(/\\.[^.]+$/, "")})})).json();
+  const r = await fetch(`/api/jobs/${S.job}/restyle`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({workflow:made.id})});
+  if (!r.ok) return toast("적용 실패"); toast("스타일을 적용했어요"); await reloadPresets(); load(S.job);
+});
+
+/* ---------- 레퍼런스 라이브러리 ---------- */
+async function reloadPresets(){ try { W.presets = await (await fetch("/api/presets")).json(); pickWf(W.presets[W.workflow] ? W.workflow : "longform"); } catch(_) {} }
+$("#b-refs").onclick = () => { show("refs"); loadRefs(); };
+$("#refs-back").onclick = () => show("idle");
+$("#rbtn").onclick = () => $("#rfile").click();
+$("#rfile").onchange = async () => {
+  const files = [...$("#rfile").files]; $("#rfile").value = ""; if (!files.length) return;
+  const ai = $("#r-ai").checked;
+  if (ai && !AIS.configured) { toast("먼저 'AI 설정'에서 Cloudflare 계정을 연결하세요"); return $("#b-ai").click(); }
+  if (ai && !confirm("AI 분석을 켜면 레퍼 영상 조각이 Cloudflare로 전송돼요. 진행할까요?")) return;
+  const fd = new FormData(); files.forEach(f => fd.append("files", f)); fd.append("ai", ai);
+  const r = await fetch("/api/refs", {method:"POST", body:fd});
+  if (!r.ok) return toast((await r.json()).detail || "업로드 실패");
+  toast(`${files.length}개를 추가했어요 — 분석 중…`); loadRefs();
+};
+let refT = null;
+async function loadRefs(){
+  clearTimeout(refT);
+  const list = await (await fetch("/api/refs")).json();
+  $("#rn").textContent = list.length ? `${list.length}개` : "";
+  const sel = new Set([...document.querySelectorAll("#rlist2 .rsel:checked")].map(x => x.dataset.id));
+  const lab = {caps:"큰 자막", popup:"키워드 팝업", zoom:"줌", closeup:"얼굴 클로즈업", broll:"B-roll", slides:"슬라이드"};
+  $("#rlist2").innerHTML = list.map(r => {
+    const m = r.metrics, fr = r.clef && r.clef.fractions;
+    const st = r.status === "indexed" ? "" : r.status === "error" ? `<span class="warnt">분석 실패 — ${esc(r.error||"")}</span>` : "분석 중…";
+    const mt = m ? `분당 컷 ${m.shots_per_min} · 무음 ${Math.round(m.silence_ratio*100)}% · ${r.aspect} · ${fmt(r.duration)}` : "";
+    const tags = fr ? Object.entries(lab).filter(([k]) => k in fr).map(([k,v]) => `<i class="tag ${fr[k]>=0.5?"on":""}">${v} ${Math.round(fr[k]*100)}%</i>`).join("") : "";
+    return `<div class="refrow"><input type="checkbox" class="rsel" data-id="${r.id}" ${r.status!=="indexed"?"disabled":""} ${sel.has(r.id)?"checked":""}>
+      <div><div>${esc(r.name)} ${st}</div><div class="mt">${mt}</div>${tags?`<div class="tags">${tags}</div>`:""}${r.error && r.status==="indexed" ? `<div class="mt warnt">${esc(r.error)}</div>`:""}</div>
+      <span class="row"><button class="rdel" data-id="${r.id}" type="button">삭제</button></span></div>`;
+  }).join("") || `<div class="hint">아직 없어요. 위에서 레퍼 영상을 추가하세요.</div>`;
+  const pr = await (await fetch("/api/presets")).json();
+  const mine = Object.entries(pr).filter(([,v]) => v.custom);
+  $("#mypresets").innerHTML = mine.length ? mine.map(([id,v]) => `<div class="refrow" style="grid-template-columns:1fr auto"><div>${esc(v.label)} <span class="mt">${v.canvas} · 줌 ${v.features.zoom?"켬":"끔"} · 팝업 ${v.features.emphasis?"켬":"끔"}</span></div><button class="pdel" data-id="${id}" type="button">삭제</button></div>`).join("") : "아직 없어요";
+  if (list.some(r => r.status === "indexing" || r.status === "new")) refT = setTimeout(loadRefs, 2000);
+}
+$("#rlist2").addEventListener("click", async e => {
+  const b = e.target.closest(".rdel"); if (!b) return;
+  if (confirm("이 레퍼를 삭제할까요?")) { await fetch(`/api/refs/${b.dataset.id}`, {method:"DELETE"}); loadRefs(); }
+});
+$("#mypresets").addEventListener("click", async e => {
+  const b = e.target.closest(".pdel"); if (!b || !confirm("이 스타일을 삭제할까요?")) return;
+  await fetch(`/api/presets/${b.dataset.id}`, {method:"DELETE"}); await reloadPresets(); loadRefs();
+});
+const selRefs = () => [...document.querySelectorAll("#rlist2 .rsel:checked")].map(x => x.dataset.id);
+$("#stprev").onclick = async () => {
+  const ids = selRefs(); if (!ids.length) return toast("스타일에 쓸 레퍼를 체크하세요");
+  const r = await fetch("/api/refs/style", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ref_ids:ids, name:$("#stname").value})});
+  const d = await r.json(); if (!r.ok) return toast(d.detail || "만들 수 없어요");
+  $("#stylebox").classList.remove("hide");
+  $("#stylebox").innerHTML = `<h2>이렇게 정했어요 <span class="hint">(근거)</span></h2><ul class="reasons">${d.reasons.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+    <div class="row" style="margin-top:10px"><button class="pri" id="stsave" type="button">이 값으로 저장</button><span class="hint">컷 감도(무음·여유)는 새 작업에 적용돼요</span></div>`;
+  $("#stsave").onclick = async () => {
+    const m = await fetch("/api/presets/from-refs", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ref_ids:ids, name:$("#stname").value})});
+    if (!m.ok) return toast("저장 실패"); toast("내 스타일로 저장했어요 — 업로드 화면의 스타일 카드에서 고를 수 있어요");
+    $("#stylebox").classList.add("hide"); $("#stname").value = ""; await reloadPresets(); loadRefs();
+  };
+};
+$("#rqgo").onclick = async () => {
+  const q = $("#rq").value.trim(); if (!q) return toast("찾을 내용을 입력하세요");
+  if (!AIS.configured) { toast("먼저 'AI 설정'에서 Cloudflare 계정을 연결하세요"); return $("#b-ai").click(); }
+  $("#rqres").textContent = "찾는 중… (레퍼 구간마다 AI에게 물어보느라 몇 초 걸려요)";
+  const r = await fetch("/api/refs/search", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({query:q})});
+  const d = await r.json(); if (!r.ok) { $("#rqres").textContent = ""; return toast(d.detail || "검색 실패"); }
+  $("#rqres").innerHTML = d.results.map(x => `<div class="sbar"><span>${esc(x.name)}</span><span class="tc">${Math.round(x.score*100)}% 일치 (구간 ${x.clips}개)</span></div>`).join("") + `<div class="hint">이번 검색 비용 약 $${d.cost_usd.toFixed(3)}</div>`;
+};
+loadAI();
 loadRecent();
 </script>
-</body>
-</html>
