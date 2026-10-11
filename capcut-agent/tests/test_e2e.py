@@ -22,6 +22,7 @@ def ctx(tmp_path, transcript, monkeypatch):
 
 
 def upload(client, video, **form):
+    form.setdefault("render", "false")           # 기본은 렌더 생략(느림). 렌더 테스트만 켠다
     with open(video, "rb") as f:
         r = client.post("/api/jobs", files={"file": ("talk.mp4", f, "video/mp4")}, data=form)
     assert r.status_code == 200, r.text
@@ -46,7 +47,7 @@ def test_full_pipeline_and_draft(ctx, video):
     jid = upload(client, video)
     evs = wait_done(client, jid)
     order = [e["key"] for e in evs if e["type"] == "stage" and e["state"] == "done"]
-    assert order == ["silence", "asr", "filler", "points", "draft"] and evs[-1]["type"] == "done"
+    assert order == ["silence", "asr", "filler", "points", "draft", "render"] and evs[-1]["type"] == "done"
 
     res = client.get(f"/api/jobs/{jid}").json()["result"]
     assert res["counts"]["ng"] == 1 and res["counts"]["filler"] == 1 and res["counts"]["silence"] >= 2

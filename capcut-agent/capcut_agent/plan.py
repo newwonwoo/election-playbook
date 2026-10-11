@@ -134,7 +134,7 @@ def build(tr: Transcript, samples: np.ndarray, keep: list[Interval], info: dict,
     subs += [Sub(s.start + teaser, s.end + teaser, s.text) for s in subtitles.build(tr, keep, sc, fixes)]
     subs.sort(key=lambda s: s.start)
     for a, b in zip(subs, subs[1:]):
-        if a.end > b.start:
+        if a.end > b.start or b.start - a.end < 0.35:     # 겹침 제거 + 짧은 틈은 이어 붙여 자막 깜빡임 방지
             a.end = b.start
     subs = [s for s in subs if s.end - s.start > 0.05]
 

@@ -135,6 +135,12 @@ textarea{width:100%;min-height:70px;background:#0f0f0f;color:var(--text);border:
 #ov-pop{top:18%;font-size:clamp(20px,4vw,38px);color:#ffe534;text-shadow:0 2px 0 #000,0 0 8px #000}
 #ov-chap{top:8px;font-size:13px;background:rgba(0,0,0,.6);padding:3px 12px;border-radius:6px;color:#fff}
 .ov.on{opacity:1}
+#rbar{height:2px;background:var(--line);border-radius:2px;margin-top:12px;overflow:hidden}
+#rbar i{display:block;height:100%;width:0;background:var(--acc);transition:width .4s}
+.vsw{display:flex;gap:4px;margin-bottom:10px}
+.vsw button{padding:3px 12px;font-size:12px;border-radius:999px}
+.vsw button[aria-pressed=true]{border-color:var(--acc);color:var(--acc)}
+.final canvas{opacity:.25}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1c1c1c;border:1px solid var(--line2);padding:8px 16px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s}
 #toast.show{opacity:1}
 </style>
@@ -142,7 +148,7 @@ textarea{width:100%;min-height:70px;background:#0f0f0f;color:var(--text);border:
 <body>
 <div class="wrap">
   <header>
-    <h1>캡컷 에이전트<small>한국어 토킹 영상 자동 컷 + 자막 → 캡컷 드래프트</small></h1>
+    <h1>캡컷 에이전트<small>올리면 컷·자막·편집까지 끝낸 mp4가 나와요</small></h1>
     <div class="chips" id="chips" aria-label="환경 점검"></div>
   </header>
 
@@ -151,7 +157,7 @@ textarea{width:100%;min-height:70px;background:#0f0f0f;color:var(--text);border:
     <div id="drop" tabindex="0" role="button" aria-label="영상 파일 선택">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7 9m5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
       <b>영상 파일을 드래그하거나 클릭해서 선택</b>
-      <span>.mp4 .mov · 최대 500MB</span>
+      <span>.mp4 .mov · 최대 500MB · 올리면 완성된 mp4까지 자동으로 만들어요</span>
       <div id="bar"></div>
       <input type="file" id="file" accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" class="hide">
     </div>
@@ -176,6 +182,7 @@ textarea{width:100%;min-height:70px;background:#0f0f0f;color:var(--text);border:
         <label class="f" style="grid-column:1/-1">용어 사전 <span class="hint">한 줄에 하나. <code>틀린표기=맞는표기</code> 는 자막 교정, 표기만 쓰면 강조어</span>
           <textarea id="o-gl" placeholder="채권 관리=채권관리&#10;대위변제"></textarea></label>
         <label class="f chk"><input type="checkbox" id="o-sub" checked> 자막 생성</label>
+        <label class="f chk"><input type="checkbox" id="o-render" checked> 완성 mp4 자동 렌더링 <span class="hint">(끄면 캡컷 드래프트만)</span></label>
       </div>
     </details>
   </section>
@@ -194,6 +201,7 @@ textarea{width:100%;min-height:70px;background:#0f0f0f;color:var(--text);border:
   <section id="s-res" class="hide">
     <div id="res">
       <div class="card">
+        <div class="vsw" role="group" aria-label="미리보기 종류"><button type="button" id="v-edit" aria-pressed="true">편집 프리뷰 (원본)</button><button type="button" id="v-final" aria-pressed="false" disabled>완성본</button></div>
         <div class="stage"><video id="vid" controls playsinline preload="metadata"></video><div class="ov" id="ov-pop"></div><div class="ov" id="ov-chap"></div></div>
         <canvas id="tl" aria-label="타임라인: 클릭하면 이동"></canvas>
         <div class="pbar">
@@ -210,6 +218,13 @@ textarea{width:100%;min-height:70px;background:#0f0f0f;color:var(--text);border:
       </div>
 
       <div class="stack">
+        <div class="card" id="finalcard">
+          <div class="row" style="justify-content:space-between;align-items:flex-start">
+            <div><div class="row"><i class="dot" id="rdot"></i><b id="rtxt">완성 영상</b></div><div class="hint" id="rsub" style="margin-top:2px"></div></div>
+            <div class="row"><a id="rdl" class="hide" href="#"><button class="pri" type="button">mp4 받기</button></a><button id="rretry" class="hide">다시 렌더링</button></div>
+          </div>
+          <div id="rbar"><i></i></div>
+        </div>
         <div class="card">
           <div class="stats">
             <div><div class="n" id="st-orig">-</div><div class="l">원본</div></div>
@@ -227,7 +242,7 @@ textarea{width:100%;min-height:70px;background:#0f0f0f;color:var(--text);border:
             <div id="ptlist" style="max-height:260px;overflow:auto;margin:0 -8px"></div>
             <div id="chapbox" class="hide"><hr><div class="row" style="justify-content:space-between"><h2 style="margin:0">유튜브 챕터</h2><button id="copychap">복사</button></div>
               <pre id="chaptext" class="code" style="margin-top:8px;white-space:pre-wrap"></pre></div>
-            <div id="hlbox" class="hide"><hr><h2>숏츠 후보 <span class="hint">완결된 20~60초 구간 · 9:16 드래프트로 따로 생성</span></h2><div id="hllist"></div></div>
+            <div id="hlbox" class="hide"><hr><h2>숏츠 후보 <span class="hint">완결된 20~60초 구간 · 9:16 mp4로 따로 생성</span></h2><div id="hllist"></div></div>
           </div>
         </div>
         <div class="card">
@@ -317,6 +332,7 @@ function start(file){
   fd.append("workflow", W.workflow);
   fd.append("features", JSON.stringify(W.features));
   fd.append("glossary", $("#o-gl").value);
+  fd.append("render", $("#o-render").checked);
   const x = new XMLHttpRequest();
   x.open("POST", "/api/jobs");
   x.upload.onprogress = e => { if (e.lengthComputable) $("#bar").style.width = (e.loaded/e.total*100) + "%"; };
@@ -330,22 +346,24 @@ function start(file){
 }
 
 /* ---------- 진행 (SSE stepper) ---------- */
-const STEPS = [["silence","무음 감지"],["asr","음성 인식 (전체 대본 추출)"],["filler","잔말·NG 판정"],["points","편집 포인트 탐색"],["draft","캡컷 드래프트 생성"]];
+const STEPS = [["silence","무음 감지"],["asr","음성 인식 (전체 대본 추출)"],["filler","잔말·NG 판정"],["points","편집 포인트 탐색"],["draft","캡컷 드래프트 생성"],["render","영상 렌더링 (완성 mp4)"]];
+let st_pct = null;
 function renderSteps(state){
   $("#steps").innerHTML = STEPS.map(([k,l]) => {
     const s = state[k] || {}; const cls = s.state || "";
     const dot = cls==="done" ? "ok" : cls==="running" ? "run" : "";
-    const t = cls==="done" ? s.sec.toFixed(1)+"s" : cls==="running" ? "처리 중" : "대기";
+    const t = cls==="done" ? s.sec.toFixed(1)+"s" : cls==="skipped" ? "건너뜀" : cls==="running" ? (k==="render" && st_pct!=null ? st_pct+"%" : "처리 중") : "대기";
     return `<div class="step ${cls==="running"?"run":cls}"><i class="dot ${dot}"></i><span>${l}</span><span class="t">${t}</span></div>`;
   }).join("");
 }
 function watch(id, name){
   S.job = id; show("proc"); $("#pname").textContent = name; $("#err").textContent = ""; $("#retry").classList.add("hide");
-  const st = {}; renderSteps(st);
+  const st = {}; st_pct = null; renderSteps(st);
   const es = new EventSource(`/api/jobs/${id}/events`);
   es.onmessage = m => {
     const ev = JSON.parse(m.data);
     if (ev.type === "stage") { st[ev.key] = ev; renderSteps(st); }
+    else if (ev.type === "progress") { st_pct = ev.pct; renderSteps(st); }
     else if (ev.type === "done") { es.close(); load(id); }
     else if (ev.type === "error") { es.close(); $("#err").textContent = "처리 실패 — " + ev.message; $("#retry").classList.remove("hide"); }
   };
@@ -361,7 +379,7 @@ async function load(id){
   $("#srt").href = `/api/jobs/${id}/srt`;
   $("#dpath").textContent = S.res.draft_path;
   const a = S.res.asr; $("#asrinfo").textContent = `ASR ${a.backend} / ${a.model}${a.cached ? " (캐시 사용)" : ""} · 무음 기준 ${S.res.threshold_db}dB · 자막 ${S.res.subtitle_count}줄`;
-  buildWords(); show("res"); refresh(); renderExtras();
+  buildWords(); show("res"); setFinal(false); refresh(); renderExtras(); renderRender(j.render); pollRender();
 }
 
 function computeKeep(){            // 서버 cuts.compute_keep과 동일 로직 → 토글 즉시 반영
@@ -385,9 +403,9 @@ function inKeep(t){ return S.keep.some(([s,e]) => t>=s && t<=e); }
 
 function refresh(){
   S.keep = computeKeep();
-  const out = S.keep.reduce((a,[s,e])=>a+e-s,0), D = S.res.duration;
+  const out = S.keep.reduce((a,[s,e])=>a+e-s,0) + (S.res.teaser_len||0), D = S.res.duration;   // 완성 영상 길이 = 본편 + 티저
   $("#st-orig").textContent = fmt(D); $("#st-out").textContent = fmt(out);
-  $("#st-save").textContent = Math.round((D-out)/D*100) + "%";
+  $("#st-save").textContent = Math.max(0, Math.round((D-out)/D*100)) + "%";
   $("#apply").disabled = !S.dirty;
   $("#apply").textContent = S.dirty ? "드래프트 갱신 (변경됨)" : "드래프트 갱신";
   renderCuts(); renderMarks(); markWords(); renderPoints(); draw();
@@ -422,10 +440,44 @@ $("#apply").onclick = async () => {
   if (!r.ok) { toast("갱신 실패"); return refresh(); }
   S.res = await r.json(); S.dirty = false; S.ptChange = {}; S.pts = S.res.points; $("#dpath").textContent = S.res.draft_path; renderExtras();
   $("#asrinfo").textContent = $("#asrinfo").textContent.replace(/자막 \d+줄/, `자막 ${S.res.subtitle_count}줄`);
-  toast("드래프트를 갱신했어요 (ASR 재실행 없음)"); refresh();
+  toast("드래프트를 갱신했어요 — 완성 영상을 다시 렌더링합니다"); setFinal(false); refresh(); renderRender({state:"running",pct:0}); pollRender();
 };
 $("#copy").onclick = () => navigator.clipboard.writeText($("#dpath").textContent).then(()=>toast("경로를 복사했어요"), ()=>toast("복사 실패"));
 $("#again").onclick = () => { $("#vid").pause(); show("idle"); fileIn.value = ""; };
+
+/* ---------- 완성 영상 (렌더) ---------- */
+const mb = n => (n/1048576).toFixed(1) + "MB";
+function renderRender(r){
+  S.render = r || {state:"idle"};
+  const st = S.render.state, dot = $("#rdot");
+  dot.className = "dot " + (st==="done" ? "ok" : st==="running" ? "run" : st==="error" ? "bad" : "");
+  $("#rtxt").textContent = st==="done" ? "완성 영상 준비됨" : st==="running" ? `완성 영상 렌더링 중 ${Math.round(S.render.pct||0)}%` : st==="error" ? "렌더링 실패" : st==="skipped" ? "완성 영상 생성 안 함" : "완성 영상";
+  $("#rsub").textContent = st==="done" ? `${mb(S.render.size)} · 편집 후에는 자동으로 다시 만들어져요` : st==="error" ? (S.render.error||"").slice(0,140) : st==="skipped" ? "옵션에서 '완성 mp4 자동 렌더링'을 켜면 만들어요" : "컷·자막·줌·팝업이 모두 적용된 mp4";
+  $("#rbar i").style.width = (st==="done" ? 100 : st==="running" ? (S.render.pct||0) : 0) + "%";
+  $("#rdl").classList.toggle("hide", st!=="done"); $("#rdl").href = `/api/jobs/${S.job}/mp4?dl=1`;
+  $("#rretry").classList.toggle("hide", !["error","skipped"].includes(st));
+  $("#v-final").disabled = st!=="done";
+  if (st!=="done" && S.final) setFinal(false);
+}
+let pollT = null;
+function pollRender(){
+  clearTimeout(pollT);
+  pollT = setTimeout(async () => {
+    try { const j = await (await fetch(`/api/jobs/${S.job}`)).json(); renderRender(j.render);
+      if (j.render.state === "running") return pollRender();
+      if (j.render.state === "done") toast("완성 영상이 준비됐어요"); } catch(_) { pollRender(); }
+  }, 1000);
+}
+$("#rretry").onclick = async () => { await fetch(`/api/jobs/${S.job}/render`, {method:"POST"}); renderRender({state:"running", pct:0}); pollRender(); };
+function setFinal(on){
+  S.final = on; const v = $("#vid");
+  $("#v-edit").setAttribute("aria-pressed", !on); $("#v-final").setAttribute("aria-pressed", on);
+  document.querySelector("#res").classList.toggle("final", on);
+  v.pause(); v.style.transform = ""; $("#ov-pop").classList.remove("on"); $("#ov-chap").classList.remove("on");
+  v.src = on ? `/api/jobs/${S.job}/mp4?t=${Date.now()}` : `/api/jobs/${S.job}/video`;
+}
+$("#v-edit").onclick = () => S.final && setFinal(false);
+$("#v-final").onclick = () => !S.final && !$("#v-final").disabled && setFinal(true);
 
 /* ---------- 편집 포인트 ---------- */
 const PK = {hook:"훅", zoom:"줌", emphasis:"강조", chapter:"챕터", loudness:"음량"};
@@ -453,7 +505,7 @@ function renderExtras(){
   $("#chapbox").classList.toggle("hide", !r.chapters_text); $("#chaptext").textContent = r.chapters_text || "";
   $("#hlbox").classList.toggle("hide", !(r.highlights||[]).length);
   $("#hllist").innerHTML = (r.highlights||[]).map((h,i) => `<div class="hl"><div><div>${esc(h.label)}</div><div class="s">${fmt(h.start)}~${fmt(h.end)} · ${h.data.length}s · ${esc(h.data.why||"")}</div></div>
-    <div class="row"><button data-seek="${h.start}">보기</button><button class="pri" data-i="${i}">숏츠 만들기</button></div></div>`).join("");
+    <div class="row"><button data-seek="${h.start}">보기</button><button class="pri" data-i="${i}">숏츠 mp4 만들기</button></div></div>`).join("");
 }
 $("#copychap").onclick = () => navigator.clipboard.writeText($("#chaptext").textContent).then(()=>toast("챕터를 복사했어요 — 유튜브 설명란에 붙여넣기"), ()=>toast("복사 실패"));
 $("#hllist").addEventListener("click", async e => {
@@ -461,10 +513,12 @@ $("#hllist").addEventListener("click", async e => {
   if (b.dataset.seek) { $("#vid").currentTime = +b.dataset.seek; return; }
   const h = S.res.highlights[+b.dataset.i]; b.disabled = true; b.textContent = "생성 중…";
   const r = await fetch(`/api/jobs/${S.job}/clip`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({start:h.start, end:h.end})});
-  b.disabled = false; b.textContent = "숏츠 만들기";
+  b.disabled = false; b.textContent = "숏츠 mp4 만들기";
   if (!r.ok) return toast((await r.json()).detail || "생성 실패");
-  const o = await r.json(); navigator.clipboard.writeText(o.draft_path).catch(()=>{});
-  toast(`숏츠 드래프트 생성 (${o.out_duration}s) — 경로 복사됨`);
+  const o = await r.json();
+  if (o.video_name) { const a = document.createElement("a"); a.href = `/api/jobs/${S.job}/files/${o.video_name}`; a.download = o.video_name; a.click();
+    toast(`숏츠 mp4 완성 (${o.out_duration}s · ${mb(o.video_size)}) — 다운로드를 시작합니다`); }
+  else toast(`숏츠 드래프트 생성 (${o.out_duration}s)`);
 });
 function selTab(t){
   $("#tab-cuts").setAttribute("aria-selected", t==="cuts"); $("#tab-pts").setAttribute("aria-selected", t==="pts");
@@ -482,7 +536,7 @@ function buildWords(){
 function markWords(){
   document.querySelectorAll(".w").forEach(el => { const w = S.words[el.dataset.i]; el.classList.toggle("cutw", !inKeep((w.start+w.end)/2)); });
 }
-$("#trbody").addEventListener("click", e => { const el=e.target.closest(".w"); if (el) $("#vid").currentTime = S.words[el.dataset.i].start; });
+$("#trbody").addEventListener("click", e => { const el=e.target.closest(".w"); if (el && !S.final) $("#vid").currentTime = S.words[el.dataset.i].start; });
 
 /* ---------- 타임라인 ---------- */
 const cv = $("#tl"), ctx = cv.getContext("2d");
@@ -510,7 +564,7 @@ function draw(){
   const t = $("#vid").currentTime || 0;
   ctx.fillStyle = "#fff"; ctx.fillRect(x(t)-1,0,2,H);
 }
-cv.addEventListener("click", e => { const r = cv.getBoundingClientRect(); $("#vid").currentTime = (e.clientX-r.left)/r.width*S.res.duration; });
+cv.addEventListener("click", e => { if (S.final) return; const r = cv.getBoundingClientRect(); $("#vid").currentTime = (e.clientX-r.left)/r.width*S.res.duration; });
 addEventListener("resize", draw);
 
 /* ---------- 재생 루프: 컷 건너뛰기 + 플레이헤드 + 현재 단어 ---------- */
@@ -519,6 +573,7 @@ let lastNow = -1;
 function tick(){
   if (S.res && !$("#s-res").classList.contains("hide")){
     const t = vid.currentTime;
+    if (S.final) { $("#tc").textContent = `${fmt(t)} / ${fmt(vid.duration||0)} (완성본)`; draw(); requestAnimationFrame(tick); return; }
     if (S.skip && !vid.paused && !inKeep(t)){
       const nxt = S.keep.find(([s]) => s > t);
       if (nxt) vid.currentTime = nxt[0]; else { vid.pause(); }

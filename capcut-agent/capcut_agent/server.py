@@ -60,7 +60,7 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
                          threshold_db: float | None = Form(None), min_silence: float | None = Form(None),
                          pad: float | None = Form(None), aggressive: bool | None = Form(None),
                          subtitles: bool = Form(True), workflow: str = Form("longform"),
-                         features: str = Form(""), glossary: str = Form("")):
+                         features: str = Form(""), glossary: str = Form(""), render: bool = Form(True)):
         ext = Path(file.filename or "").suffix.lower()
         if ext not in ALLOWED:
             raise HTTPException(400, "mp4 / mov 파일만 지원합니다")
@@ -72,7 +72,7 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
             raise HTTPException(400, "features는 JSON이어야 합니다")
         opts = pipeline.Options(model=model, threshold_db=threshold_db, min_silence=min_silence, pad=pad,
                                 aggressive=aggressive, subtitles=subtitles, workflow=workflow,
-                                features=feats, glossary=glossary)
+                                features=feats, glossary=glossary, render=render)
         job = store.create(file.filename or "video" + ext, opts)
         size = 0
         with job.source.open("wb") as f:               # 스트리밍 저장(메모리에 통째로 올리지 않음)
@@ -135,6 +135,31 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
     def video(jid: str):
         job = job_or_404(jid)
         return FileResponse(job.source)                 # Range 지원 → 프리뷰 시크 가능
+
+    @app.get("/api/jobs/{jid}/mp4")
+    def mp4(jid: str, dl: int = 0):
+        job = job_or_404(jid)
+        f = job.files.get("main")
+        if job.render["state"] != "done" or f is None or not Path(f).exists():
+            raise HTTPException(409, "완성 영상이 아직 준비되지 않았습니다")
+        name = Path(job.filename).stem + "_edited.mp4"
+        return FileResponse(f, media_type="video/mp4", filename=name if dl else None)
+
+    @app.post("/api/jobs/{jid}/render")
+    async def render_again(jid: str):
+        job = job_or_404(jid)
+        if job.status != "done" or job.plan is None:
+            raise HTTPException(409, "아직 처리 중입니다")
+        asyncio.create_task(pipeline.render_bg(job))
+        return {"state": "running"}
+
+    @app.get("/api/jobs/{jid}/files/{name}")
+    def extra_file(jid: str, name: str):
+        job = job_or_404(jid)
+        f = job.files.get(name)
+        if f is None or not Path(f).exists():
+            raise HTTPException(404)
+        return FileResponse(f, media_type="video/mp4", filename=name)
 
     @app.get("/api/jobs/{jid}/srt")
     def srt(jid: str):

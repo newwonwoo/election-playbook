@@ -1,6 +1,6 @@
 # 캡컷 에이전트
 
-한국어 토킹 영상(mp4/mov) → **무음·잔말·NG 컷 + 자막**이 적용된 **캡컷 드래프트**를 자동 생성하는 로컬 웹 도구.
+한국어 토킹 영상(mp4/mov)을 올리면 **무음·잔말·NG 컷, 자막, 훅, 줌, 강조 팝업, 챕터, 음량 보정까지 적용된 완성 mp4**를 자동으로 만드는 로컬 웹 도구입니다. **캡컷은 필요 없습니다**(원하면 같은 편집이 담긴 캡컷 드래프트도 함께 만듭니다).
 [pycapcut](https://github.com/GuanYixuan/pyJianYingDraft) 으로 드래프트를 만들고, FastAPI + 정적 HTML 1장으로 동작합니다.
 
 ## 실행
@@ -12,6 +12,14 @@ python -m capcut_agent.server       # → http://127.0.0.1:8765
 - Mac M칩(트랙 A): `pip install mlx-whisper` 하면 자동으로 mlx-whisper 사용, 그 외는 faster-whisper.
 - 환경변수: `CAPCUT_DRAFT_DIR`(드래프트 폴더 강제 지정), `CAPCUT_WORKDIR`, `PORT`, `CAPCUT_MIN_STAGE`.
 - CapCut 드래프트 폴더를 못 찾으면 `workspace/output/` 에 저장됩니다(CapCut 설치+1회 실행 후 자동 인식).
+
+## 완전 자동 (v0.3)
+1. 영상을 올린다 → 2. 워크플로(숏폼/롱폼/강의)를 고른다 → 3. 기다린다 → **완성 mp4 다운로드**.
+- 결과 화면에서 포인트를 끄거나 켜면 완성 영상을 **자동으로 다시 렌더링**합니다(진행률 표시).
+- 숏츠 후보는 버튼 한 번으로 **9:16 mp4**까지 만들어집니다.
+- 렌더링은 ffmpeg로 하며 자막은 ASS(libass)로 입힙니다. 한글 폰트는 Mac `Apple SD Gothic Neo`, Windows `Malgun Gothic`을 쓰고, Linux는 설치된 한글 폰트를 찾습니다. 다른 폰트는 `CAPCUT_FONT="폰트이름"`으로 지정하세요.
+- 렌더링 없이 캡컷 드래프트만 원하면 옵션에서 "완성 mp4 자동 렌더링"을 끄세요.
+- 출력 위치: `workspace/output/`
 
 ## 핵심 원칙
 1. **전체 대본을 먼저 추출 → 그걸로 NG/자막 결정** (단어 단위 판단 X). 같은 문장이 다시 나오면 앞 테이크를 NG로, 마지막 테이크를 유지.
