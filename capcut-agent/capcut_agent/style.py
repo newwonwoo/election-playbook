@@ -1,6 +1,7 @@
 """레퍼런스 프로필 → 편집 프리셋. 값마다 '왜 그렇게 정했는지'를 함께 돌려줘서 사람이 확인할 수 있게 한다."""
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -111,3 +112,29 @@ def delete_custom(path: Path, pid: str) -> bool:
     P.PRESETS.pop(pid, None)
     path.write_text(json.dumps(d, ensure_ascii=False, indent=2), "utf-8")
     return True
+
+
+def auto_preset(refs: list[dict], ids: list[str]) -> tuple[str, dict, list[str]]:
+    """새 작업을 레퍼에 맞출 때 쓰는 프리셋. 같은 레퍼 조합이면 같은 id(재사용·갱신), 내 스타일 목록에는 숨긴다."""
+    prof = merge(refs)
+    name = refs[0]["name"].rsplit(".", 1)[0] + (f" 외 {len(refs) - 1}개" if len(refs) > 1 else "")
+    preset, why = to_preset(prof, name)
+    preset.update(auto=True, refs=list(ids))
+    pid = "refjob_" + hashlib.sha1(",".join(sorted(ids)).encode()).hexdigest()[:10]
+    return pid, preset, why
+
+
+def match_report(profile: dict, result: dict) -> list[dict]:
+    """편집 결과가 레퍼 대비 얼마나 가까운지(컷 속도·팝업 빈도·길이). 정확한 일치가 아니라 방향 확인용."""
+    out_d = max(result.get("out_duration") or 0.0, 1.0)
+    shots = (len(result.get("keep") or []) + (result.get("point_counts") or {}).get("zoom", 0)) / out_d * 60
+    pops = (result.get("point_counts") or {}).get("emphasis", 0) / out_d * 60
+    rows = [{"label": "컷 속도(분당)", "ref": round(profile["metrics"]["shots_per_min"], 1), "mine": round(shots, 1)},
+            {"label": "영상 길이(분)", "ref": round(profile["duration"] / 60, 1), "mine": round(out_d / 60, 1)}]
+    fr = profile.get("fractions")
+    if fr and "popup" in fr:
+        rows.append({"label": "팝업 빈도(분당)", "ref": round(fr["popup"] * 12, 1), "mine": round(pops, 1)})
+    for r in rows:
+        hi = max(r["ref"], r["mine"], 1e-6)
+        r["close"] = min(r["ref"], r["mine"]) / hi >= 0.6
+    return rows

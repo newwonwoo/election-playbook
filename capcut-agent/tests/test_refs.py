@@ -249,3 +249,40 @@ def test_delete_ref_removes_files(vids, cf, tmp_path):
         d = tmp_path / "w" / "refs" / ids[0]
         assert d.exists()
         assert c.delete(f"/api/refs/{ids[0]}").status_code == 200 and not d.exists() and c.delete(f"/api/refs/{ids[0]}").status_code == 404
+
+
+# ---------- 옵션: 레퍼런스에 맞춰 편집 ----------
+def test_job_follows_reference_style_option(vids, cf, tmp_path):
+    with app(tmp_path, cf) as c:
+        (rid,), _ = add_refs(c, [vids["fast"]])                                    # 빠른 세로 레퍼
+        base_id, base = job(c, vids["mine_h"])                                     # 옵션 없이: 가로 롱폼
+        assert base["result"]["canvas"] == [1280, 720] and base["refs"] == []
+        assert c.get(f"/api/jobs/{base_id}/refs/match").status_code == 404         # 레퍼 없는 작업엔 비교 없음
+        jid, j = job(c, vids["mine_h"], ref_ids=rid)                               # 같은 영상 + 레퍼 선택
+        assert j["refs"] == [rid] and j["ref_why"]
+        assert j["result"]["canvas"] == [1080, 1920]                               # 레퍼가 세로 → 세로 캔버스로 맞춤
+        assert j["result"]["point_counts"]["zoom"] > 0                             # 분당 22컷 레퍼 → 줌 켜짐
+        assert not any(k.startswith("refjob_") for k in c.get("/api/presets").json())   # 내 스타일 목록엔 안 나옴
+        m = c.get(f"/api/jobs/{jid}/refs/match").json()
+        assert [r["label"] for r in m["rows"]][:2] == ["컷 속도(분당)", "영상 길이(분)"] and m["names"] == ["fast_v.mp4"]
+        assert all({"ref", "mine", "close"} <= set(r) for r in m["rows"])
+
+
+def test_ref_option_validation(vids, cf, tmp_path):
+    with app(tmp_path, cf) as c:
+        up = [("files", ("a.mp4", vids["mine_v"].read_bytes(), "video/mp4"))]
+        assert c.post("/api/jobs", files=up, data={"ref_ids": "nope"}).status_code == 404
+        assert c.get("/api/jobs").json() == []                                     # 거절된 요청은 작업을 남기지 않음
+
+
+def test_ref_job_survives_restart_and_deleted_ref(vids, cf, tmp_path):
+    with app(tmp_path, cf) as c:
+        (rid,), _ = add_refs(c, [vids["fast"]])
+        jid, _ = job(c, vids["mine_h"], ref_ids=rid)
+    with app(tmp_path, cf) as c2:                                                  # 재시작: 자동 프리셋이 복원돼 다시 만들기가 된다
+        j = c2.get(f"/api/jobs/{jid}").json()
+        assert j["refs"] == [rid]
+        assert c2.post(f"/api/jobs/{jid}/rebuild", json={}).status_code == 200
+        assert c2.delete(f"/api/refs/{rid}").status_code == 200
+        assert c2.get(f"/api/jobs/{jid}/refs/match").status_code == 410            # 레퍼가 지워져도 작업은 그대로
+        assert c2.get(f"/api/jobs/{jid}").json()["status"] == "done"

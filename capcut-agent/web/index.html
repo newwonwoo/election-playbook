@@ -209,6 +209,12 @@ dialog input[type=text],dialog input[type=password],.in{width:100%;background:#0
     </div>
     <div id="stage" class="card hide" style="margin-top:14px"></div>
     <div class="wf" id="wf" role="radiogroup" aria-label="워크플로 선택"></div>
+    <div class="card" id="refpick" style="margin-top:14px">
+      <div class="row" style="justify-content:space-between"><b>레퍼런스에 맞춰 편집 <span class="hint">옵션</span></b><span class="hint" id="refpick-n"></span></div>
+      <div class="hint" style="margin:6px 0 4px">레퍼를 고르면 그 영상의 컷 속도·무음·팝업·자막 크기·줌을 읽어 내 영상에 같은 느낌으로 편집해요. 고르지 않으면 위 워크플로를 그대로 써요. 레퍼 영상은 외부로 나가지 않아요(AI 분석을 켠 레퍼는 예외).</div>
+      <div id="refpick-list"></div>
+      <ul class="reasons hide" id="refpick-why"></ul>
+    </div>
     <details>
       <summary>처리 옵션</summary>
       <div class="opts">
@@ -280,6 +286,11 @@ dialog input[type=text],dialog input[type=password],.in{width:100%;background:#0
             <div class="row"><a id="rdl" class="hide" href="#"><button class="pri" type="button">mp4 받기</button></a><button id="rretry" class="hide">다시 렌더링</button></div>
           </div>
           <div id="rbar"><i></i></div>
+        </div>
+        <div class="card hide" id="refcard">
+          <b>레퍼런스 맞춤 결과</b> <span class="hint" id="refcard-names"></span>
+          <div id="refcard-rows" style="margin-top:8px"></div>
+          <ul class="reasons" id="refcard-why" style="margin-top:8px"></ul>
         </div>
         <div class="card" id="aicard">
           <div class="row" style="justify-content:space-between"><b>AI 영상 분석 <span class="hint">Clef-omni</span></b><span id="aistate" class="tc"></span></div>
@@ -354,7 +365,7 @@ let W = {workflow:'longform', presets:{}, features:{}, aggDirty:false};
 let S = {edits:{}, pend:{}, newCuts:[], tmpId:0, selIdx:[], pts:[], ptChange:{}, ptFilter:'all', job:null, res:null, cuts:[], marks:[], markStart:null, skip:true, words:[], dirty:false};
 
 function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toast.h); toast.h=setTimeout(()=>t.classList.remove("show"),2200); }
-function show(id){ for (const s of ["idle","proc","res","refs"]) $("#s-"+s).classList.toggle("hide", s!==id); if (id==="idle") loadRecent(); }
+function show(id){ for (const s of ["idle","proc","res","refs"]) $("#s-"+s).classList.toggle("hide", s!==id); if (id==="idle") { loadRecent(); if (window.loadRefPick) loadRefPick(); } }
 
 /* ---------- 환경 점검 (Step 0) ---------- */
 fetch("/api/env").then(r=>r.json()).then(e=>{
@@ -386,6 +397,29 @@ function renderFeats(){
 $("#wf").addEventListener("click", e => { const b = e.target.closest("button"); if (b) pickWf(b.dataset.id); });
 $("#feats").addEventListener("change", e => { W.features[e.target.dataset.f] = e.target.checked; });
 $("#o-agg").addEventListener("change", () => W.aggDirty = true);
+
+/* ---------- 레퍼런스에 맞춰 편집 (옵션) ---------- */
+const RP = {sel:new Set(), list:[]};
+async function loadRefPick(){
+  try { RP.list = (await (await fetch("/api/refs")).json()).filter(r => r.status === "indexed"); } catch(_) { RP.list = []; }
+  RP.sel = new Set([...RP.sel].filter(id => RP.list.some(r => r.id === id)));
+  $("#refpick-list").innerHTML = RP.list.map(r => `<label class="refrow chk" style="grid-template-columns:auto 1fr"><input type="checkbox" class="rp" data-id="${r.id}" ${RP.sel.has(r.id)?"checked":""}>
+    <div>${esc(r.name)} <span class="mt">분당 컷 ${r.metrics.shots_per_min} · 무음 ${Math.round(r.metrics.silence_ratio*100)}% · ${r.aspect}</span></div></label>`).join("")
+    || `<div class="hint">분석이 끝난 레퍼가 없어요. 상단 '레퍼런스'에서 레퍼 영상을 추가하면 여기서 고를 수 있어요.</div>`;
+  renderRefPick();
+}
+async function renderRefPick(){
+  $("#refpick-n").textContent = RP.sel.size ? `${RP.sel.size}개 선택` : "";
+  $("#wf").style.opacity = RP.sel.size ? 0.45 : 1; $("#feats").style.opacity = RP.sel.size ? 0.45 : 1;
+  const ul = $("#refpick-why"); ul.classList.toggle("hide", !RP.sel.size);
+  if (!RP.sel.size) return;
+  try {
+    const r = await fetch("/api/refs/style", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ref_ids:[...RP.sel]})});
+    const d = await r.json(); ul.innerHTML = r.ok ? d.reasons.map(x => `<li>${esc(x)}</li>`).join("") : `<li>${esc(d.detail||"")}</li>`;
+  } catch(_) { ul.innerHTML = ""; }
+}
+$("#refpick-list").addEventListener("change", e => { const c = e.target.closest(".rp"); if (!c) return; c.checked ? RP.sel.add(c.dataset.id) : RP.sel.delete(c.dataset.id); renderRefPick(); });
+loadRefPick();
 
 /* ---------- 업로드 (여러 영상 + 자막 파일) ---------- */
 const VID = /\.(mp4|mov|m4v)$/i, SUBF = /\.(srt|vtt)$/i, MAXF = 500*1024*1024;
@@ -463,6 +497,7 @@ function send(){
   fd.append("subtitles", $("#o-sub").checked);
   fd.append("workflow", W.workflow);
   fd.append("features", JSON.stringify(W.features));
+  if (RP.sel.size) fd.append("ref_ids", [...RP.sel].join(","));
   fd.append("glossary", $("#o-gl").value);
   fd.append("render", $("#o-render").checked);
   fd.append("ai", $("#o-ai").checked);
@@ -573,7 +608,7 @@ async function load(id){
   $("#asrinfo").textContent = `대본: ${tsrc} · 무음 기준 ${S.res.threshold_db}dB · 자막 ${S.res.subtitle_count}줄`;
   const srcs = S.res.sources || [];
   $("#srcinfo").textContent = srcs.length > 1 ? "구성: " + srcs.map(s => `${s.name.replace(/\.[^.]+$/, "")} (${fmt(s.offset)}${s.sub ? ", 자막파일" : ""})`).join(" → ") : "";
-  S.vstate = j.vision_state; buildWords(); show("res"); setFinal(false); refresh(); renderExtras(); renderRender(j.render); pollRender(); renderAI(); $("#reflist").classList.add("hide"); if (j.vision_state.state === "running") pollVision();
+  S.vstate = j.vision_state; buildWords(); show("res"); setFinal(false); refresh(); renderExtras(); S.refInfo = j; renderRefCard(j); renderRender(j.render); pollRender(); renderAI(); $("#reflist").classList.add("hide"); if (j.vision_state.state === "running") pollVision();
 }
 
 function computeKeep(){            // 서버 cuts.compute_keep과 동일 로직 → 토글 즉시 반영
@@ -602,7 +637,7 @@ function refresh(){
   $("#st-save").textContent = Math.max(0, Math.round((D-out)/D*100)) + "%";
   $("#apply").disabled = !S.dirty;
   $("#apply").textContent = S.dirty ? "드래프트 갱신 (변경됨)" : "드래프트 갱신";
-  renderCuts(); renderMarks(); markWords(); renderPoints(); draw(); renderAI();
+  renderCuts(); renderMarks(); markWords(); renderPoints(); draw(); renderAI(); renderRefCard(S.refInfo);
 }
 
 function renderCuts(){
@@ -905,6 +940,16 @@ $("#o-ai").addEventListener("change", async e => {
 });
 
 /* ---------- 결과 화면: AI 카드 ---------- */
+async function renderRefCard(j){
+  const card = $("#refcard"), refs = (j && j.refs) || [];
+  card.classList.toggle("hide", !refs.length); if (!refs.length) return;
+  $("#refcard-why").innerHTML = (j.ref_why||[]).map(x => `<li>${esc(x)}</li>`).join("");
+  try {
+    const r = await fetch(`/api/jobs/${S.job}/refs/match`); if (!r.ok) throw 0; const d = await r.json();
+    $("#refcard-names").textContent = "· " + d.names.join(", ");
+    $("#refcard-rows").innerHTML = d.rows.map(x => `<div class="refrow" style="grid-template-columns:1fr auto auto"><span>${esc(x.label)}</span><span class="mt">레퍼 ${x.ref}</span><span class="mt ${x.close?"":"warnt"}">내 영상 ${x.mine} ${x.close?"≈":"△"}</span></div>`).join("");
+  } catch(_) { $("#refcard-rows").innerHTML = `<div class="hint">레퍼가 삭제돼 비교할 수 없어요</div>`; }
+}
 function renderAI(){
   const v = S.res.vision, vs = S.vstate || {state:"idle"};
   const running = vs.state === "running";

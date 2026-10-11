@@ -134,7 +134,7 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
                          pad: float | None = Form(None), aggressive: bool | None = Form(None),
                          subtitles: bool = Form(True), workflow: str = Form("longform"),
                          features: str = Form(""), glossary: str = Form(""), render: bool = Form(True),
-                         ai: bool = Form(False), ai_auto: bool = Form(False)):
+                         ai: bool = Form(False), ai_auto: bool = Form(False), ref_ids: str = Form("")):
         """영상 1개 이상(+ 자막 파일 .srt/.vtt). mode=merge: 이어붙여 작업 1개 / mode=separate: 영상마다 작업 1개."""
         videos = ([file] if file is not None else []) + list(files)
         if not videos:
@@ -153,9 +153,24 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
             feats = json.loads(features) if features else None
         except ValueError:
             raise HTTPException(400, "features는 JSON이어야 합니다")
+        rid_list = [x for x in (ref_ids or "").split(",") if x.strip()]
+        ref_why: list[str] = []
+        if rid_list:                                     # 옵션: 레퍼런스에 맞춰 편집 (워크플로 대신 레퍼 스타일 사용)
+            found = _refs_for(rid_list)
+            if len(found) != len(rid_list):
+                raise HTTPException(404, "선택한 레퍼 중 삭제된 것이 있어요")
+            if any(r.get("status") != "indexed" for r in found):
+                raise HTTPException(400, "아직 분석 중인 레퍼가 있어요. 분석이 끝난 뒤에 선택하세요")
+            try:
+                workflow, preset, ref_why = STY.auto_preset(found, rid_list)
+            except ValueError as e:
+                raise HTTPException(400, str(e))
+            STY.save_custom(presets_path, workflow, preset)
+            feats = None                                 # 기능 on/off는 레퍼 값을 따른다
         opts = pipeline.Options(model=model, threshold_db=threshold_db, min_silence=min_silence, pad=pad,
                                 aggressive=aggressive, subtitles=subtitles, workflow=workflow,
-                                features=feats, glossary=glossary, render=render, ai=ai, ai_auto=ai_auto)
+                                features=feats, glossary=glossary, render=render, ai=ai, ai_auto=ai_auto,
+                                refs=rid_list, ref_why=ref_why)
         names = [v.filename or "video.mp4" for v in videos]
         pairing = subfile.pair(names, [sb.filename or "" for sb in subs])
         groups = [[i] for i in range(len(videos))] if mode == "separate" else [list(range(len(videos)))]
@@ -317,7 +332,7 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
     @app.get("/api/presets")
     def presets():
         return {k: {"label": v["label"], "canvas": v["canvas"], "features": v["features"], "options": v["options"],
-                    "custom": bool(v.get("custom"))} for k, v in P.PRESETS.items()}
+                    "custom": bool(v.get("custom"))} for k, v in P.PRESETS.items() if not v.get("auto")}
 
     @app.delete("/api/presets/{pid}")
     def delete_preset(pid: str):
@@ -436,6 +451,17 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
             prof["face"] = V.mean_over(job.vision, "face", 0, 1e9)
             prof["slides"] = V.mean_over(job.vision, "slides", 0, 1e9)
         return {"profile": prof, "results": R.similar(prof, refs.list())}
+
+    @app.get("/api/jobs/{jid}/refs/match")
+    def refs_match(jid: str):
+        """레퍼에 맞춘 작업의 결과가 레퍼와 얼마나 비슷한지."""
+        job = job_or_404(jid)
+        if not job.options.refs or not job.result:
+            raise HTTPException(404, "레퍼에 맞춘 작업이 아니에요")
+        found = [r for r in (refs.get(i) for i in job.options.refs) if r]
+        if not found:
+            raise HTTPException(410, "레퍼가 삭제됐어요")
+        return {"rows": STY.match_report(STY.merge(found), job.result), "names": [r["name"] for r in found]}
 
     @app.post("/api/jobs/{jid}/restyle")
     async def restyle(jid: str, req: RestyleReq):

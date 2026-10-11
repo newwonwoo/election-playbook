@@ -41,6 +41,8 @@ class Options:
     render: bool = True                    # 완성 mp4까지 자동 렌더 (캡컷 불필요)
     ai: bool = False                       # Clef-omni로 영상 구간 분석 (영상 조각이 Cloudflare로 전송됨 → 기본 꺼짐)
     ai_auto: bool = False                  # AI가 제안한 '나쁜 구간' 컷을 자동으로 적용 (기본은 제안만)
+    refs: list = field(default_factory=list)       # 이 영상을 맞춰 편집할 레퍼런스 id (옵션, 비면 일반 워크플로)
+    ref_why: list = field(default_factory=list)    # 레퍼 값 → 편집 설정으로 바꾼 근거(화면에 표시)
 
     def resolved(self) -> "Options":
         pr = P.PRESETS[self.workflow]["options"]
@@ -87,7 +89,7 @@ class Job:
     def public(self) -> dict:
         return {"id": self.id, "filename": self.filename, "status": self.status, "created": self.created,
                 "queue": self.queue_pos, "error": self.error, "result": self.result, "render": self.render,
-                "vision_state": self.vision_state, "stages": [{"key": k, "label": l} for k, l in STAGES]}
+                "vision_state": self.vision_state, "refs": self.options.refs, "ref_why": self.options.ref_why, "stages": [{"key": k, "label": l} for k, l in STAGES]}
 
     def summary(self) -> dict:
         r = self.result or {}
