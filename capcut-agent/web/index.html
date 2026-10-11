@@ -152,6 +152,14 @@ textarea{width:100%;min-height:70px;background:#0f0f0f;color:var(--text);border:
 .w.edited{border-bottom:1px dotted var(--acc)}
 .w.removed{color:var(--warn);text-decoration:line-through dotted}
 input.winp{background:#0f0f0f;color:var(--text);border:1px solid var(--acc);border-radius:4px;font:inherit;padding:0 4px}
+#stage h2{margin-bottom:8px}
+.srow{display:grid;grid-template-columns:22px 1fr auto auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:13px}
+.srow .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srow .sb{font:12px var(--mono);color:var(--acc)}
+.srow .sb.none{color:var(--mute)}
+.srow .sb.warn{color:var(--warn)}
+.srow button{padding:1px 8px;font-size:12px}
+.srow .no{font:12px var(--mono);color:var(--mute)}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1c1c1c;border:1px solid var(--line2);padding:8px 16px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s}
 #toast.show{opacity:1}
 </style>
@@ -168,10 +176,11 @@ input.winp{background:#0f0f0f;color:var(--text);border:1px solid var(--acc);bord
     <div id="drop" tabindex="0" role="button" aria-label="영상 파일 선택">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7 9m5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
       <b>영상 파일을 드래그하거나 클릭해서 선택</b>
-      <span>.mp4 .mov · 최대 500MB · 올리면 완성된 mp4까지 자동으로 만들어요</span>
+      <span>.mp4 .mov (여러 개 가능) · 자막 .srt .vtt 도 함께 · 파일당 최대 500MB</span>
       <div id="bar"></div>
-      <input type="file" id="file" accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" class="hide">
+      <input type="file" id="file" multiple accept=".mp4,.mov,.m4v,.srt,.vtt,video/mp4,video/quicktime" class="hide">
     </div>
+    <div id="stage" class="card hide" style="margin-top:14px"></div>
     <div class="wf" id="wf" role="radiogroup" aria-label="워크플로 선택"></div>
     <details>
       <summary>처리 옵션</summary>
@@ -227,6 +236,7 @@ input.winp{background:#0f0f0f;color:var(--text);border:1px solid var(--acc);bord
           <div class="tog" id="skip" role="switch" aria-checked="true" tabindex="0"><span class="sw"></span>컷 건너뛰며 재생 <kbd>S</kbd></div>
         </div>
         <hr>
+        <div class="hint" id="srcinfo" style="margin-top:8px"></div>
         <div class="row keys">
           <span><kbd>Space</kbd> 재생</span><span><kbd>←</kbd><kbd>→</kbd> 1초</span>
           <span><kbd>[</kbd> <kbd>]</kbd> 이 구간은 살린다</span>
@@ -327,20 +337,74 @@ $("#wf").addEventListener("click", e => { const b = e.target.closest("button"); 
 $("#feats").addEventListener("change", e => { W.features[e.target.dataset.f] = e.target.checked; });
 $("#o-agg").addEventListener("change", () => W.aggDirty = true);
 
-/* ---------- 업로드 ---------- */
+/* ---------- 업로드 (여러 영상 + 자막 파일) ---------- */
+const VID = /\.(mp4|mov|m4v)$/i, SUBF = /\.(srt|vtt)$/i, MAXF = 500*1024*1024;
+const Q = {videos:[], subs:[], mode:"merge"};
 const drop = $("#drop"), fileIn = $("#file");
 drop.onclick = () => fileIn.click();
 drop.onkeydown = e => { if (e.key==="Enter"||e.key===" ") { e.preventDefault(); fileIn.click(); } };
-fileIn.onchange = () => fileIn.files[0] && start(fileIn.files[0]);
+fileIn.onchange = () => { addFiles(fileIn.files); fileIn.value = ""; };
 ["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
 ["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
-drop.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; f && start(f); });
+drop.addEventListener("drop", e => addFiles(e.dataTransfer.files));
 
-function start(file){
-  if (!/\.(mp4|mov|m4v)$/i.test(file.name)) return toast("mp4 / mov 파일만 지원해요");
-  if (file.size > 500*1024*1024) return toast("최대 500MB까지 지원해요");
+function addFiles(list){
+  const files = [...list], vids = files.filter(f => VID.test(f.name)), subs = files.filter(f => SUBF.test(f.name));
+  const skipped = files.length - vids.length - subs.length, big = vids.filter(f => f.size > MAXF);
+  if (skipped) toast(`지원하지 않는 파일 ${skipped}개는 건너뛰었어요 (영상 mp4·mov / 자막 srt·vtt)`);
+  if (big.length) toast(`파일당 최대 500MB예요: ${big.map(f=>f.name).join(", ")}`);
+  const ok = vids.filter(f => f.size <= MAXF);
+  if (!ok.length && !subs.length) return;
+  const single = !Q.videos.length && !Q.subs.length && ok.length === 1 && !subs.length;
+  Q.videos.push(...ok); Q.subs.push(...subs);
+  if (single) return send();                       // 영상 하나만 → 바로 시작 (완전 자동)
+  renderStage();
+}
+const stemOf = n => n.replace(/\.[^.]+$/, "").trim().toLowerCase();
+function pairing(){                                  // 서버(subfile.pair)와 같은 규칙: 이름 일치 → 아니면 개수가 같을 때 순서대로
+  const by = {}; Q.subs.forEach((s, j) => { if (!(stemOf(s.name) in by)) by[stemOf(s.name)] = j; });
+  const used = new Set();
+  const res = Q.videos.map(v => { const j = by[stemOf(v.name)]; if (j !== undefined && !used.has(j)) { used.add(j); return j; } return null; });
+  return res.every(r => r === null) && Q.videos.length === Q.subs.length ? Q.videos.map((_, i) => i) : res;
+}
+function renderStage(){
+  const st = $("#stage");
+  if (!Q.videos.length && !Q.subs.length) { st.classList.add("hide"); return; }
+  const pr = pairing(), usedSubs = new Set(pr.filter(x => x !== null));
+  const total = Q.videos.reduce((a, f) => a + f.size, 0);
+  const rows = Q.videos.map((f, i) => `<div class="srow" data-i="${i}"><span class="no">${i+1}</span>
+      <span class="nm" title="${esc(f.name)}">${esc(f.name)} <span class="hint">${mb(f.size)}</span></span>
+      <span class="sb ${pr[i]===null?"none":""}">${pr[i]===null ? "음성 인식" : "자막 · " + esc(Q.subs[pr[i]].name)}</span>
+      <span class="row" style="gap:4px"><button data-act="up" ${i===0?"disabled":""} aria-label="위로">↑</button><button data-act="down" ${i===Q.videos.length-1?"disabled":""} aria-label="아래로">↓</button><button data-act="del" aria-label="삭제">✕</button></span></div>`).join("");
+  const orphan = Q.subs.map((s, j) => usedSubs.has(j) ? "" : `<div class="srow" data-j="${j}"><span class="no">!</span><span class="nm">${esc(s.name)}</span><span class="sb warn">짝이 없는 자막 — 영상과 파일 이름을 같게 해 주세요</span><span><button data-act="delsub">✕</button></span></div>`).join("");
+  st.innerHTML = `<h2>올릴 파일 · 영상 ${Q.videos.length}개${Q.subs.length ? " · 자막 " + Q.subs.length + "개" : ""} <span class="hint">(${mb(total)})</span></h2>${rows}${orphan}
+    ${Q.videos.length > 1 ? `<div class="vsw" style="margin:14px 0 4px" role="group" aria-label="처리 방식">
+      <button type="button" data-mode="merge" aria-pressed="${Q.mode==="merge"}">하나로 이어붙이기</button>
+      <button type="button" data-mode="separate" aria-pressed="${Q.mode==="separate"}">영상마다 따로 처리</button></div>
+      <div class="hint">${Q.mode==="merge" ? "위 순서대로 한 편으로 이어붙여서 컷·자막·챕터를 전체에 적용해요. 영상 하나가 챕터 하나가 돼요." : "영상마다 따로 작업을 만들어 순서대로 처리해요."}</div>` : ""}
+    <div class="row" style="margin-top:14px"><button class="pri" id="stgo" ${Q.videos.length?"":"disabled"}>시작</button><button id="stadd">파일 더 추가</button><button id="stclr">모두 지우기</button></div>`;
+  st.classList.remove("hide");
+}
+$("#stage").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const row = b.closest(".srow"), i = row ? +row.dataset.i : -1;
+  if (b.dataset.mode) { Q.mode = b.dataset.mode; }
+  else if (b.dataset.act === "up" && i > 0) [Q.videos[i-1], Q.videos[i]] = [Q.videos[i], Q.videos[i-1]];
+  else if (b.dataset.act === "down" && i < Q.videos.length - 1) [Q.videos[i+1], Q.videos[i]] = [Q.videos[i], Q.videos[i+1]];
+  else if (b.dataset.act === "del") Q.videos.splice(i, 1);
+  else if (b.dataset.act === "delsub") Q.subs.splice(+row.dataset.j, 1);
+  else if (b.id === "stadd") return fileIn.click();
+  else if (b.id === "stclr") { Q.videos = []; Q.subs = []; }
+  else if (b.id === "stgo") return send();
+  renderStage();
+});
+
+function send(){
+  const vids = [...Q.videos], subs = [...Q.subs], pr = pairing();
   const fd = new FormData();
-  fd.append("file", file);
+  vids.forEach(f => fd.append("files", f));
+  subs.forEach(f => fd.append("subs", f));
+  fd.append("mode", vids.length > 1 ? Q.mode : "merge");
   fd.append("model", $("#o-model").value);
   if ($("#o-thr").value !== "") fd.append("threshold_db", $("#o-thr").value);
   if ($("#o-min").value !== "") fd.append("min_silence", $("#o-min").value);
@@ -351,20 +415,24 @@ function start(file){
   fd.append("features", JSON.stringify(W.features));
   fd.append("glossary", $("#o-gl").value);
   fd.append("render", $("#o-render").checked);
+  const label = vids[0].name + (vids.length > 1 && Q.mode === "merge" ? ` 외 ${vids.length-1}개` : "");
   const x = new XMLHttpRequest();
   x.open("POST", "/api/jobs");
   x.upload.onprogress = e => { if (e.lengthComputable) $("#bar").style.width = (e.loaded/e.total*100) + "%"; };
   x.onload = () => {
     $("#bar").style.width = "0";
     if (x.status !== 200) { let m = "업로드 실패"; try { m = JSON.parse(x.responseText).detail || m; } catch(_){} return toast(m); }
-    watch(JSON.parse(x.responseText).id, file.name);
+    const r = JSON.parse(x.responseText);
+    Q.videos = []; Q.subs = []; Q.mode = "merge"; renderStage();
+    if (r.ids.length > 1) { toast(`${r.ids.length}개 작업을 대기열에 넣었어요 — 아래 '최근 작업'에서 확인하세요`); return loadRecent(); }
+    watch(r.id, label);
   };
   x.onerror = () => toast("서버에 연결할 수 없어요");
   x.send(fd);
 }
 
 /* ---------- 진행 (SSE stepper) ---------- */
-const STEPS = [["silence","무음 감지"],["asr","음성 인식 (전체 대본 추출)"],["filler","잔말·NG 판정"],["points","편집 포인트 탐색"],["draft","캡컷 드래프트 생성"],["render","영상 렌더링 (완성 mp4)"]];
+const STEPS = [["merge","영상 이어붙이기"],["silence","무음 감지"],["asr","대본 만들기 (음성 인식 / 자막 파일)"],["filler","잔말·NG 판정"],["points","편집 포인트 탐색"],["draft","캡컷 드래프트 생성"],["render","영상 렌더링 (완성 mp4)"]];
 let st_pct = null;
 function renderSteps(state){
   $("#steps").innerHTML = STEPS.map(([k,l]) => {
@@ -411,7 +479,7 @@ async function loadRecent(){
     $("#rlist").innerHTML = jobs.map(j => {
       const dot = j.status==="done" ? "ok" : (j.status==="running"||j.status==="queued") ? "run" : j.status==="error" ? "bad" : "";
       const when = new Date(j.created*1000).toLocaleString("ko-KR", {month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit"});
-      const extra = j.status==="queued" ? ` · ${j.queue}번째` : j.out_duration ? ` · ${fmt(j.out_duration)}` : "";
+      const extra = (j.videos > 1 ? ` · 영상 ${j.videos}개` : "") + (j.status==="queued" ? ` · ${j.queue}번째` : j.out_duration ? ` · ${fmt(j.out_duration)}` : "");
       const rs = j.render==="done" ? " · mp4 있음" : j.render==="running" ? " · 렌더링 중" : "";
       return `<div class="rrow" data-id="${j.id}" data-st="${j.status}" data-name="${esc(j.filename)}" tabindex="0"><i class="dot ${dot}"></i>
         <div><div class="nm">${esc(j.filename)}</div><div class="mt">${STN[j.status]||j.status} · ${WFN[j.workflow]||""} · ${when}${extra}${rs}</div></div>
@@ -448,7 +516,10 @@ async function load(id){
   const v = $("#vid"); v.src = `/api/jobs/${id}/video`;
   $("#srt").href = `/api/jobs/${id}/srt`;
   $("#dpath").textContent = S.res.draft_path;
-  const a = S.res.asr; $("#asrinfo").textContent = `ASR ${a.backend} / ${a.model}${a.cached ? " (캐시 사용)" : ""} · 무음 기준 ${S.res.threshold_db}dB · 자막 ${S.res.subtitle_count}줄`;
+  const a = S.res.asr, tsrc = a.source === "srt" ? "자막 파일" : a.source === "asr" ? `음성 인식 ${a.backend}/${a.model}${a.cached ? "(캐시)" : ""}` : "자막 파일 + 음성 인식";
+  $("#asrinfo").textContent = `대본: ${tsrc} · 무음 기준 ${S.res.threshold_db}dB · 자막 ${S.res.subtitle_count}줄`;
+  const srcs = S.res.sources || [];
+  $("#srcinfo").textContent = srcs.length > 1 ? "구성: " + srcs.map(s => `${s.name.replace(/\.[^.]+$/, "")} (${fmt(s.offset)}${s.sub ? ", 자막파일" : ""})`).join(" → ") : "";
   buildWords(); show("res"); setFinal(false); refresh(); renderExtras(); renderRender(j.render); pollRender();
 }
 
@@ -694,6 +765,9 @@ function draw(){
     else if (p.kind === "emphasis") { ctx.fillStyle = "#ffe534"; ctx.beginPath(); ctx.arc(x(p.start), 5, 3, 0, 7); ctx.fill(); }
     else if (p.kind === "hook") { ctx.fillStyle = "#f59e0b"; ctx.beginPath(); ctx.moveTo(x(p.start)-5,0); ctx.lineTo(x(p.start)+5,0); ctx.lineTo(x(p.start),9); ctx.fill(); }
   }
+  const srcs = S.res.sources || [];                // 이어붙인 영상 경계(점선)
+  if (srcs.length > 1) { ctx.strokeStyle = "rgba(237,237,237,.55)"; ctx.setLineDash([3,3]); ctx.lineWidth = 1;
+    for (const s of srcs.slice(1)) { ctx.beginPath(); ctx.moveTo(x(s.offset)+.5, 0); ctx.lineTo(x(s.offset)+.5, H); ctx.stroke(); } ctx.setLineDash([]); }
   const t = $("#vid").currentTime || 0;
   ctx.fillStyle = "#fff"; ctx.fillRect(x(t)-1,0,2,H);
 }

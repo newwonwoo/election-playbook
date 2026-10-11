@@ -279,7 +279,7 @@ def clip_gain_db(samples: np.ndarray, s: float, e: float, target_db: float = -20
 
 # ---- 6) 숏츠 후보 -----------------------------------------------------------------------------
 def detect_highlights(tr: Transcript, samples: np.ndarray, keep: list[Interval], *, lo: float = 20.0, hi: float = 60.0,
-                      top: int = 5) -> list[EditPoint]:
+                      top: int = 5, boundaries: list[float] | None = None) -> list[EditPoint]:
     segs = [s for s in tr.segments if s.words]
     if not segs:
         return []
@@ -298,6 +298,8 @@ def detect_highlights(tr: Transcript, samples: np.ndarray, keep: list[Interval],
                 break
             if dur < lo:
                 continue
+            if any(s0.start < b < segs[j].end for b in (boundaries or [])):
+                break                                    # 서로 다른 영상에 걸친 구간은 숏츠로 부적합
             nxt_gap = (segs[j + 1].start - segs[j].end) if j + 1 < len(segs) else 9.0
             closed = bool(re.search(r"(다|요|죠|니다|세요)[.!?]?\s*$", segs[j].text.strip())) and nxt_gap >= 0.6
             if not closed:

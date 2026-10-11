@@ -10,6 +10,7 @@ import threading
 from pathlib import Path
 from typing import Callable
 
+from . import media
 from .plan import Plan
 
 LOUDNORM = "loudnorm=I=-16:TP=-1.5:LRA=11"   # 유튜브/숏폼 표준 라우드니스
@@ -101,7 +102,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 def clip_filters(info: dict, plan: Plan, canvas: tuple[int, int], c) -> tuple[str, str]:
     cw, ch = canvas
     w, h = info["width"], info["height"]
-    k = min(cw / w, ch / h) * plan.base_scale * c.scale        # 맞춤 배율 × 리프레임 × 줌
+    fit = min(cw / w, ch / h)
+    cover = getattr(plan, "cover", None)
+    if cover is None:                                          # (구버전 계획 호환) 맞춤 배율 × 리프레임 배율
+        k = fit * getattr(plan, "base_scale", 1.0) * c.scale
+    else:                                                      # 영상마다 크기가 달라도 캔버스에 맞춤/꽉 채움
+        k = (max(cw / w, ch / h) if cover else fit) * c.scale
     sw, sh = even(w * k), even(h * k)
     v = [f"scale={sw}:{sh}:flags=bicubic"]
     if sw > cw or sh > ch:
@@ -135,14 +141,15 @@ def _run(cmd: list[str], total: float, on_pct: Callable[[float], None], cancel: 
         raise RuntimeError("ffmpeg 렌더 실패: " + (err[0] if err else "")[-600:])
 
 
-def _graph_pass(video: str, info: dict, plan: Plan, canvas, clips, work: Path, tag: str, ass: str | None, font_dir: str | None, norm: bool = False):
+def _graph_pass(info: dict, plan: Plan, canvas, pieces, work: Path, tag: str, ass: str | None, font_dir: str | None, norm: bool = False):
+    """pieces = [(원본 영상, 로컬 시작, 로컬 끝, 클립)] — 입력마다 파일을 따로 열어 정확히 자르고 이어붙인다."""
     inputs: list[str] = []
     chains: list[str] = []
-    for i, c in enumerate(clips):
-        inputs += ["-ss", f"{c.src_s:.3f}", "-t", f"{c.src_e - c.src_s:.3f}", "-i", video]
-        vf, af = clip_filters(info, plan, canvas, c)
+    for i, (src, ls, le, c) in enumerate(pieces):
+        inputs += ["-ss", f"{ls:.3f}", "-t", f"{le - ls:.3f}", "-i", src.path]
+        vf, af = clip_filters({"width": src.width, "height": src.height, "fps": info["fps"]}, plan, canvas, c)
         chains.append(f"[{i}:v:0]{vf}[v{i}];[{i}:a:0]{af}[a{i}]")
-    cat = "".join(f"[v{i}][a{i}]" for i in range(len(clips))) + f"concat=n={len(clips)}:v=1:a=1[vc][ac]"
+    cat = "".join(f"[v{i}][a{i}]" for i in range(len(pieces))) + f"concat=n={len(pieces)}:v=1:a=1[vc][ac]"
     fd = f":fontsdir={font_dir}" if font_dir else ""
     vlast = f"[vc]ass={ass}{fd}[v]" if ass else "[vc]null[v]"
     alast = f"[ac]{LOUDNORM}[a]" if (norm and plan.enhance) else "[ac]anull[a]"
@@ -152,7 +159,7 @@ def _graph_pass(video: str, info: dict, plan: Plan, canvas, clips, work: Path, t
     return inputs, script
 
 
-def render(video: str, info: dict, plan: Plan, out: Path, work: Path, *, on_progress: Callable[[float], None],
+def render(video, info: dict, plan: Plan, out: Path, work: Path, *, on_progress: Callable[[float], None],
            cancel: threading.Event | None = None, with_subs: bool = True) -> Path:
     cancel = cancel or threading.Event()
     work.mkdir(parents=True, exist_ok=True)
@@ -162,24 +169,26 @@ def render(video: str, info: dict, plan: Plan, out: Path, work: Path, *, on_prog
     ass.write_text(build_ass(plan, font, canvas, with_subs), "utf-8")
     use_ass = bool((with_subs and plan.subs) or plan.overlays)
     total = plan.out_duration
-    clips = [c for c in plan.clips if c.src_e - c.src_s > 0.05]
+    srcs = media.as_sources(video, info)
+    pieces = [(s, a, b, c) for c in plan.clips if c.src_e - c.src_s > 0.05
+              for s, a, b in media.split(srcs, c.src_s, c.src_e) if b - a > 0.02]
     enc = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
            "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart"]
     base = ["ffmpeg", "-y", "-v", "error", "-progress", "pipe:1", "-nostats"]
     out.parent.mkdir(parents=True, exist_ok=True)
 
     def single(cs, dest: Path, tag: str, final: bool, lo: float, hi: float):
-        inputs, script = _graph_pass(video, info, plan, canvas, cs, work, tag, "overlay.ass" if (final and use_ass) else None, None, norm=final)
+        inputs, script = _graph_pass(info, plan, canvas, cs, work, tag, "overlay.ass" if (final and use_ass) else None, None, norm=final)
         codec = enc if final else ["-c:v", "libx264", "-preset", "superfast", "-crf", "14", "-pix_fmt", "yuv420p",
                                    "-c:a", "pcm_s16le"]
         cmd = base + inputs + ["-filter_complex_script", script.name, "-map", "[v]", "-map", "[a]"] + codec + [str(dest)]
-        dur = sum(c.src_e - c.src_s for c in cs)
+        dur = sum(le - ls for _, ls, le, _c in cs)
         _run(cmd, dur, lambda f: on_progress(lo + (hi - lo) * f), cancel, work)
 
-    if len(clips) <= MAX_INPUTS:
-        single(clips, out, "all", True, 0.0, 1.0)
+    if len(pieces) <= MAX_INPUTS:
+        single(pieces, out, "all", True, 0.0, 1.0)
     else:                                                       # 긴 영상: 청크 → 이어붙이며 자막 입히기
-        chunks = [clips[i:i + MAX_INPUTS] for i in range(0, len(clips), MAX_INPUTS)]
+        chunks = [pieces[i:i + MAX_INPUTS] for i in range(0, len(pieces), MAX_INPUTS)]
         parts = []
         for n, cs in enumerate(chunks):
             p = work / f"chunk_{n}.mkv"

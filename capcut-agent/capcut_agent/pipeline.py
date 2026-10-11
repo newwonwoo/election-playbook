@@ -5,6 +5,7 @@ import asyncio
 import json
 import shutil
 import os
+import subprocess
 import threading
 import time
 import uuid
@@ -12,10 +13,12 @@ import shutil as _sh
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
 
-from . import audio, cuts as C, draft, filler, plan as PL, points as P, render as RD, subtitles
+import numpy as np
+
+from . import audio, cuts as C, draft, filler, media, plan as PL, points as P, render as RD, subfile, subtitles
 from .asr import AsrService, Segment, Transcript, Word
 
-STAGES = [("silence", "무음 감지"), ("asr", "음성 인식"), ("filler", "잔말·NG 판정"), ("points", "편집 포인트 탐색"), ("draft", "드래프트 생성"), ("render", "영상 렌더링")]
+STAGES = [("merge", "영상 이어붙이기"), ("silence", "무음 감지"), ("asr", "대본 만들기 (음성 인식 / 자막 파일)"), ("filler", "잔말·NG 판정"), ("points", "편집 포인트 탐색"), ("draft", "드래프트 생성"), ("render", "영상 렌더링")]
 TERMINAL = ("done", "error", "cancelled")
 
 
@@ -72,6 +75,7 @@ class Job:
     cancel_flag: threading.Event = field(default_factory=threading.Event)
     word_edits: dict = field(default_factory=dict)   # "세그먼트:단어" → 고친 글자 ("" = 자막/팝업에서 제외)
     queue_pos: int = 0
+    sources: list = field(default_factory=list)      # 이어붙일 원본 영상들 (media.Src)
 
     def emit(self, type_: str, **data) -> None:
         self.events.append({"i": len(self.events), "t": round(time.time(), 2), "type": type_, **data})
@@ -85,7 +89,8 @@ class Job:
         r = self.result or {}
         return {"id": self.id, "filename": self.filename, "status": self.status, "created": self.created,
                 "workflow": self.options.workflow, "out_duration": r.get("out_duration"), "render": self.render.get("state"),
-                "render_size": self.render.get("size", 0), "queue": self.queue_pos, "error": self.error}
+                "render_size": self.render.get("size", 0), "queue": self.queue_pos, "error": self.error,
+                "videos": len(self.sources) or 1}
 
     # ---- 영속화 (임시파일 → 교체로 중간에 꺼져도 깨지지 않게) ----
     def save(self) -> None:
@@ -95,6 +100,7 @@ class Job:
                      "cuts": [asdict(c) for c in self.cuts], "keep_marks": [list(k) for k in self.keep_marks],
                      "point_off": sorted(self.point_off), "word_edits": self.word_edits, "result": self.result,
                      "transcript": self.transcript.to_dict() if self.transcript else None,
+                     "sources": [s.to_dict() for s in self.sources],
                      "render": self.render, "files": {k: str(v) for k, v in self.files.items()}}
             tmp = self.dir / "job.json.tmp"
             tmp.write_text(json.dumps(state, ensure_ascii=False), "utf-8")
@@ -131,6 +137,7 @@ class JobStore:
         ext = Path(filename).suffix.lower()
         job = Job(jid, d, filename, d / f"source{ext}", options)
         job.out_dir = self.root / "output"
+        job.sources = [media.Src(filename, str(job.source))]
         self.jobs[jid] = job
         return job
 
@@ -150,6 +157,8 @@ class JobStore:
                 job.point_off, job.word_edits = set(s.get("point_off", [])), s.get("word_edits", {})
                 job.result = s.get("result")
                 job.transcript = Transcript.from_dict(s["transcript"]) if s.get("transcript") else None
+                job.sources = [media.Src.from_dict(x) for x in s.get("sources", [])] or [media.Src(
+                    job.filename, str(job.source), 0.0, job.info.get("duration", 0.0), job.info.get("width", 0), job.info.get("height", 0), job.info.get("fps", 30))]
                 job.render = s.get("render") or job.render
                 job.files = {k: Path(v) for k, v in (s.get("files") or {}).items()}
                 if job.status in ("queued", "running"):
@@ -249,6 +258,10 @@ async def _stage(job: Job, key: str, fn):
     t0 = time.perf_counter()
     job.emit("stage", key=key, state="running")
     out = await fn()
+    if out == "skipped":                                    # 해당 없음(예: 영상이 하나라 이어붙일 필요 없음)
+        job.emit("stage", key=key, state="skipped")
+        job.save()
+        return out
     rest = MIN_STAGE - (time.perf_counter() - t0)
     if rest > 0:
         await asyncio.sleep(rest)
@@ -269,6 +282,53 @@ def _silence_cuts(speech, duration, o: Options) -> list[tuple[str, float, float,
     return out
 
 
+def preview_path(job: Job) -> Path:
+    """편집 프리뷰로 재생할 파일: 여러 영상이면 이어붙인 저화질 합본, 하나면 원본."""
+    p = job.dir / "preview.mp4"
+    return p if len(job.sources) > 1 and p.exists() else Path(job.sources[0].path)
+
+
+def build_preview(job: Job) -> None:
+    """여러 영상을 하나로 이어붙인 프리뷰(저화질, 소리 포함). 전체 타임라인과 길이가 같다. 최종 렌더는 원본으로 따로 한다."""
+    srcs = job.sources
+    w = 640
+    h = RD.even(w * srcs[0].height / max(1, srcs[0].width))
+    ins, ch = [], []
+    for i, s in enumerate(srcs):
+        ins += ["-i", s.path]
+        ch.append(f"[{i}:v:0]scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,fps=24,setsar=1,format=yuv420p[v{i}];"
+                  f"[{i}:a:0]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo[a{i}]")
+    cat = "".join(f"[v{i}][a{i}]" for i in range(len(srcs))) + f"concat=n={len(srcs)}:v=1:a=1[v][a]"
+    script = job.dir / "preview_graph.txt"
+    script.write_text(";\n".join(ch + [cat]), "utf-8")
+    out = job.dir / "preview.mp4"
+    tmp = job.dir / "preview.tmp.mp4"
+    subprocess.run(["ffmpeg", "-y", "-v", "error"] + ins + ["-filter_complex_script", str(script), "-map", "[v]", "-map", "[a]",
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "30", "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", str(tmp)],
+                   check=True, capture_output=True)
+    os.replace(tmp, out)
+    script.unlink(missing_ok=True)
+
+
+def fit_len(x: np.ndarray, n: int) -> np.ndarray:
+    """영상 길이(초)×샘플레이트에 맞춰 PCM 길이를 맞춘다(이어붙일 때 시간이 누적해서 어긋나지 않게)."""
+    if len(x) >= n:
+        return x[:n]
+    return np.concatenate([x, np.zeros(n - len(x), dtype=x.dtype)])
+
+
+def load_all_samples(job: Job) -> np.ndarray:
+    parts = [fit_len(audio.load_pcm(s.path), int(round(s.duration * audio.SR))) for s in job.sources]
+    return parts[0] if len(parts) == 1 else np.concatenate(parts)
+
+
+def offset_transcript(tr: Transcript, off: float) -> Transcript:
+    if not off:
+        return tr
+    return Transcript(tr.language, [Segment(s.start + off, s.end + off, s.text,
+                                            [Word(w.start + off, w.end + off, w.text) for w in s.words]) for s in tr.segments])
+
+
 def make_plan(job: Job, keep: list[C.Interval] | None = None, workflow: str | None = None,
               features: dict | None = None) -> PL.Plan:
     keep = keep if keep is not None else C.compute_keep(job.info["duration"], job.cuts, job.keep_marks)
@@ -276,9 +336,10 @@ def make_plan(job: Job, keep: list[C.Interval] | None = None, workflow: str | No
         raise ValueError("남는 구간이 없어요. 말이 감지되지 않았거나 컷이 전부 활성화돼 있습니다 (무음 기준 dB를 낮춰보세요)")
     o = job.options
     if job.samples is None:                                  # 서버 재시작 후 첫 수정 때 한 번만 다시 읽는다
-        job.samples = audio.load_pcm(str(job.source))
+        job.samples = load_all_samples(job)
     return PL.build(edited(job), job.samples, keep, job.info, workflow=workflow or o.workflow,
-                    features=features if features is not None else o.features, off=job.point_off, glossary=o.glossary)
+                    features=features if features is not None else o.features, off=job.point_off, glossary=o.glossary,
+                    sources=job.sources)
 
 
 def write_draft(job: Job, plan: PL.Plan, draft_root: Path) -> dict:
@@ -287,13 +348,13 @@ def write_draft(job: Job, plan: PL.Plan, draft_root: Path) -> dict:
     dur = job.info["duration"]
     keep = C.compute_keep(dur, job.cuts, job.keep_marks)
     name = draft.safe_name(Path(job.filename).stem) + "_" + job.id[:4]
-    path = draft.build(str(job.source), job.info, plan, draft_root, name, job.options.subtitles)
+    path = draft.build(job.sources, job.info, plan, draft_root, name, job.options.subtitles)
     (job.dir / "subtitles.srt").write_text(subtitles.to_srt(plan.subs), "utf-8")
     main_len = C.total(keep)
     counts = {k: sum(1 for c in job.cuts if c.kind == k and c.enabled) for k in ("silence", "filler", "ng", "user")}
     pcounts = {k: sum(1 for p in plan.points if p.kind == k and p.enabled) for k in P.KINDS if k != "highlight"}
     et = edited(job)
-    hl = P.detect_highlights(et, job.samples, keep) if job.options.workflow != "shorts" else []
+    hl = P.detect_highlights(et, job.samples, keep, boundaries=media.boundaries(job.sources)) if job.options.workflow != "shorts" else []
     prev = job.result or {}
     return {
         "duration": round(dur, 3), "out_duration": round(plan.out_duration, 3), "saved": round(dur - main_len, 3),
@@ -306,6 +367,7 @@ def write_draft(job: Job, plan: PL.Plan, draft_root: Path) -> dict:
         "workflow": job.options.workflow, "canvas": list(plan.canvas),
         "draft_path": str(path), "draft_name": name, "info": job.info, "transcript": overlay_dict(job.transcript, job.word_edits),
         "word_edits": job.word_edits,
+        "sources": [{"name": s.name, "offset": round(s.offset, 3), "duration": round(s.duration, 3), "sub": bool(s.sub)} for s in job.sources],
         "peaks": prev.get("peaks", []), "threshold_db": prev.get("threshold_db"), "asr": prev.get("asr", {}),
     }
 
@@ -316,12 +378,12 @@ def build_clip(job: Job, draft_root: Path, start: float, end: float) -> dict:
     win = [(max(s, start), min(e, end)) for s, e in keep if e > start and s < end]
     plan = make_plan(job, [w for w in win if w[1] - w[0] > 0.1], "shorts", {"hook": False, "chapters": False})
     name = f"{draft.safe_name(Path(job.filename).stem)}_short_{int(start)}"
-    path = draft.build(str(job.source), job.info, plan, draft_root, name, job.options.subtitles)
+    path = draft.build(job.sources, job.info, plan, draft_root, name, job.options.subtitles)
     res = {"draft_path": str(path), "draft_name": name, "out_duration": round(plan.out_duration, 2),
            "subtitle_count": len(plan.subs), "canvas": list(plan.canvas)}
     if job.options.render:                                  # 숏츠도 mp4까지 완전 자동
         out = job.out_dir / f"{name}.mp4"
-        RD.render(str(job.source), job.info, plan, out, job.dir / f"work_{name}", on_progress=lambda f: None,
+        RD.render(job.sources, job.info, plan, out, job.dir / f"work_{name}", on_progress=lambda f: None,
                   with_subs=job.options.subtitles)
         shutil.rmtree(job.dir / f"work_{name}", ignore_errors=True)
         job.files[out.name] = out
@@ -352,7 +414,7 @@ def do_render(job: Job) -> None:
             last[0] = int(f * 100)
             job.emit("progress", key="render", pct=last[0])
     try:
-        RD.render(str(job.source), job.info, plan, out, job.dir / "work", on_progress=prog, cancel=cancel,
+        RD.render(job.sources, job.info, plan, out, job.dir / "work", on_progress=prog, cancel=cancel,
                   with_subs=job.options.subtitles)
         if gen == job.render_gen:
             job.files["main"] = out
@@ -392,19 +454,49 @@ async def run(job: Job, asr: AsrService, draft_root: Path, sched: Scheduler | No
     job.events.clear()
     job.save()
     try:
-        job.info = await asyncio.to_thread(audio.probe, str(job.source))
+        for s in job.sources:                                # 영상마다 길이·크기 확인 후 전체 타임라인에 배치
+            inf = await asyncio.to_thread(audio.probe, s.path)
+            s.duration, s.width, s.height, s.fps = inf["duration"], inf["width"], inf["height"], inf["fps"]
+        media.layout(job.sources)
+        f0 = job.sources[0]
+        job.info = {"duration": media.total(job.sources), "width": f0.width, "height": f0.height, "fps": f0.fps, "has_video": True}
         meta: dict = {}
 
+        async def s_merge():
+            if len(job.sources) == 1:
+                return "skipped"
+            await asyncio.to_thread(build_preview, job)
+        await _stage(job, "merge", s_merge)
+
         async def s_silence():
-            samples = await asyncio.to_thread(audio.load_pcm, str(job.source))
+            per = []
+            for s in job.sources:
+                x = await asyncio.to_thread(audio.load_pcm, s.path)
+                per.append(fit_len(x, int(round(s.duration * audio.SR))))
+            samples = per[0] if len(per) == 1 else np.concatenate(per)
             speech, thr = audio.detect_speech(samples, threshold_db=o.threshold_db, min_silence=o.min_silence)
             job.samples = samples
-            meta.update(speech=speech, thr=thr, peaks=audio.waveform_peaks(samples))
+            meta.update(speech=speech, thr=thr, peaks=audio.waveform_peaks(samples), per=per)
         await _stage(job, "silence", s_silence)
 
         async def s_asr():
-            job.transcript, cached = await asr.transcribe(str(job.source), job.samples, o.model)
-            meta["cached"] = cached
+            segs, cached_all, kinds = [], True, set()
+            for i, s in enumerate(job.sources):
+                if s.sub:                                    # 자막 파일이 있으면 음성 인식을 건너뛴다
+                    cues = [c for c in await asyncio.to_thread(subfile.parse_file, s.sub) if c.start < s.duration]
+                    tr_i = subfile.to_transcript(cues, meta["speech"], offset=s.offset)
+                    if not tr_i.segments:
+                        raise ValueError(f"자막 파일에서 읽은 문장이 없어요: {Path(s.sub).name} (형식: .srt / .vtt)")
+                    kinds.add("srt")
+                else:
+                    tr_i, cached = await asr.transcribe(s.path, meta["per"][i], o.model)
+                    tr_i = offset_transcript(tr_i, s.offset)
+                    cached_all = cached_all and cached
+                    kinds.add("asr")
+                segs += tr_i.segments
+            meta.pop("per", None)
+            job.transcript = Transcript("ko", segs)
+            meta.update(cached=cached_all, tsrc="+".join(sorted(kinds)))
         await _stage(job, "asr", s_asr)
 
         async def s_filler():
@@ -419,7 +511,8 @@ async def run(job: Job, asr: AsrService, draft_root: Path, sched: Scheduler | No
 
         async def s_draft():
             job.result = {"peaks": meta["peaks"], "threshold_db": round(meta["thr"], 1),
-                          "asr": {"backend": asr.backend.name, "model": o.model, "cached": meta["cached"]}}
+                          "asr": {"backend": "자막 파일" if meta["tsrc"] == "srt" else asr.backend.name, "model": o.model,
+                                  "cached": meta["cached"], "source": meta["tsrc"]}}
             job.result = await asyncio.to_thread(write_draft, job, meta["plan"], draft_root)
         await _stage(job, "draft", s_draft)
 

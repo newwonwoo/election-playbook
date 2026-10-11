@@ -10,12 +10,13 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
-from . import env, pipeline, points as P
+from . import env, media, pipeline, points as P, subfile
 from .asr import AsrService, Backend, default_backend
 
 WEB = Path(__file__).resolve().parent.parent / "web"
 MAX_BYTES = 500 << 20
 ALLOWED = {".mp4", ".mov", ".m4v"}
+MAX_TOTAL = int(os.environ.get("CAPCUT_MAX_TOTAL_MB", "4000")) << 20     # 한 번에 올리는 전체 용량
 
 
 class NewCut(BaseModel):
@@ -70,17 +71,41 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
         d["usage"] = store.usage()
         return d
 
+    async def save_upload(up: UploadFile, dest: Path, budget: list[int], limit: int) -> None:
+        """스트리밍 저장(메모리에 통째로 올리지 않음). 파일당 한도와 전체 한도를 모두 확인."""
+        size = 0
+        with dest.open("wb") as f:
+            while chunk := await up.read(1 << 20):
+                size += len(chunk)
+                budget[0] += len(chunk)
+                if size > limit or budget[0] > MAX_TOTAL:
+                    f.close()
+                    dest.unlink(missing_ok=True)
+                    raise HTTPException(413, f"파일당 {limit >> 20}MB, 전체 {MAX_TOTAL >> 20}MB까지 지원합니다")
+                f.write(chunk)
+
     @app.post("/api/jobs")
-    async def create_job(file: UploadFile = File(...), model: str = Form("small"),
+    async def create_job(file: UploadFile | None = File(None), files: list[UploadFile] = File(default=[]),
+                         subs: list[UploadFile] = File(default=[]), mode: str = Form("merge"),
+                         model: str = Form("small"),
                          threshold_db: float | None = Form(None), min_silence: float | None = Form(None),
                          pad: float | None = Form(None), aggressive: bool | None = Form(None),
                          subtitles: bool = Form(True), workflow: str = Form("longform"),
                          features: str = Form(""), glossary: str = Form(""), render: bool = Form(True)):
-        ext = Path(file.filename or "").suffix.lower()
-        if ext not in ALLOWED:
-            raise HTTPException(400, "mp4 / mov 파일만 지원합니다")
+        """영상 1개 이상(+ 자막 파일 .srt/.vtt). mode=merge: 이어붙여 작업 1개 / mode=separate: 영상마다 작업 1개."""
+        videos = ([file] if file is not None else []) + list(files)
+        if not videos:
+            raise HTTPException(400, "영상 파일이 없습니다")
+        for v in videos:
+            if Path(v.filename or "").suffix.lower() not in ALLOWED:
+                raise HTTPException(400, "mp4 / mov 파일만 지원합니다")
+        for sb in subs:
+            if Path(sb.filename or "").suffix.lower() not in subfile.EXTS:
+                raise HTTPException(400, "자막 파일은 .srt / .vtt 만 지원합니다")
         if workflow not in P.PRESETS:
             raise HTTPException(400, "알 수 없는 워크플로입니다")
+        if mode not in ("merge", "separate"):
+            raise HTTPException(400, "mode는 merge 또는 separate 입니다")
         try:
             feats = json.loads(features) if features else None
         except ValueError:
@@ -88,18 +113,35 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
         opts = pipeline.Options(model=model, threshold_db=threshold_db, min_silence=min_silence, pad=pad,
                                 aggressive=aggressive, subtitles=subtitles, workflow=workflow,
                                 features=feats, glossary=glossary, render=render)
-        job = store.create(file.filename or "video" + ext, opts)
-        size = 0
-        with job.source.open("wb") as f:               # 스트리밍 저장(메모리에 통째로 올리지 않음)
-            while chunk := await file.read(1 << 20):
-                size += len(chunk)
-                if size > MAX_BYTES:
-                    f.close()
-                    job.source.unlink(missing_ok=True)
-                    raise HTTPException(413, "최대 500MB까지 지원합니다")
-                f.write(chunk)
-        asyncio.create_task(pipeline.run_queued(job, asr, root, store.sched))
-        return {"id": job.id}
+        names = [v.filename or "video.mp4" for v in videos]
+        pairing = subfile.pair(names, [sb.filename or "" for sb in subs])
+        groups = [[i] for i in range(len(videos))] if mode == "separate" else [list(range(len(videos)))]
+        budget, jobs = [0], []
+        try:
+            for g in groups:
+                label = names[g[0]] + (f" 외 {len(g) - 1}개" if len(g) > 1 else "")
+                job = store.create(label, opts)
+                jobs.append(job)
+                job.sources = []
+                for n, i in enumerate(g):
+                    ext = Path(names[i]).suffix.lower()
+                    dest = job.source if n == 0 else job.dir / f"source_{n}{ext}"
+                    await save_upload(videos[i], dest, budget, MAX_BYTES)
+                    src = media.Src(names[i], str(dest))
+                    if pairing[i] is not None:
+                        sb = subs[pairing[i]]
+                        sub_dest = job.dir / f"sub_{n}{Path(sb.filename).suffix.lower()}"
+                        await sb.seek(0)
+                        await save_upload(sb, sub_dest, budget, 20 << 20)
+                        src.sub = str(sub_dest)
+                    job.sources.append(src)
+        except HTTPException:
+            for j in jobs:                                   # 일부만 올라간 작업은 남기지 않는다
+                store.delete(j)
+            raise
+        for j in jobs:
+            asyncio.create_task(pipeline.run_queued(j, asr, root, store.sched))
+        return {"id": jobs[0].id, "ids": [j.id for j in jobs]}
 
     @app.get("/api/jobs")
     def list_jobs(limit: int = 30):
@@ -186,7 +228,7 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
     @app.get("/api/jobs/{jid}/video")
     def video(jid: str):
         job = job_or_404(jid)
-        return FileResponse(job.source)                 # Range 지원 → 프리뷰 시크 가능
+        return FileResponse(pipeline.preview_path(job))  # Range 지원 → 프리뷰 시크 가능 (여러 영상이면 이어붙인 합본)
 
     @app.get("/api/jobs/{jid}/mp4")
     def mp4(jid: str, dl: int = 0):

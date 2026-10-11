@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pycapcut as cc
 
+from . import media
 from .plan import Plan
 
 US = 1_000_000
@@ -28,23 +29,26 @@ def _pop_anim(seg: cc.TextSegment) -> None:
         pass
 
 
-def build(video: str, info: dict, plan: Plan, draft_root: Path, name: str, with_subs: bool = True) -> Path:
+def build(video, info: dict, plan: Plan, draft_root: Path, name: str, with_subs: bool = True) -> Path:
     draft_root.mkdir(parents=True, exist_ok=True)
     cw, ch = plan.canvas
     script = cc.DraftFolder(str(draft_root)).create_draft(name, cw, ch, info["fps"], allow_replace=True)
     script.add_track(cc.TrackType.video)
-    mat = cc.VideoMaterial(video)
+    srcs = media.as_sources(video, info)
+    mats = {s.path: cc.VideoMaterial(s.path) for s in srcs}
     t = 0
     for c in plan.clips:
-        src_s = int(round(c.src_s * US))
-        dur = min(int(round((c.src_e - c.src_s) * US)), mat.duration - src_s)   # 소스 길이 초과 방지
-        if dur <= 0:
-            continue
-        sc = plan.base_scale * c.scale
-        script.add_segment(cc.VideoSegment(
-            mat, cc.Timerange(t, dur), source_timerange=cc.Timerange(src_s, dur), volume=c.volume,
-            clip_settings=cc.ClipSettings(scale_x=sc, scale_y=sc) if abs(sc - 1.0) > 1e-3 else None))
-        t += dur
+        for src, ls, le in media.split(srcs, c.src_s, c.src_e):          # 영상 경계를 넘는 클립은 파일별로 쪼갠다
+            mat = mats[src.path]
+            src_s = int(round(ls * US))
+            dur = min(int(round((le - ls) * US)), mat.duration - src_s)    # 소스 길이 초과 방지
+            if dur <= 0:
+                continue
+            sc = (media.cover_ratio(src, plan.canvas) if plan.cover else 1.0) * c.scale
+            script.add_segment(cc.VideoSegment(
+                mat, cc.Timerange(t, dur), source_timerange=cc.Timerange(src_s, dur), volume=c.volume,
+                clip_settings=cc.ClipSettings(scale_x=sc, scale_y=sc) if abs(sc - 1.0) > 1e-3 else None))
+            t += dur
     total_us = t
     portrait = ch > cw
 

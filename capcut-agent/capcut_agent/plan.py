@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from . import points as P, subtitles
+from . import media, points as P, subtitles
 from .asr import Transcript
 from .cuts import Interval, remap_clamp
 from .subtitles import Sub
@@ -42,6 +42,7 @@ class Plan:
     sub_size: float = 7.0
     workflow: str = "longform"
     preview: dict = field(default_factory=dict)
+    cover: bool = False            # True면 영상을 캔버스에 꽉 채움(9:16 숏폼), False면 맞춤(fit)
     enhance: bool = False          # 음질 보정(노이즈 제거 + 라우드니스 표준화) — 렌더 mp4에만 적용
 
 
@@ -68,16 +69,19 @@ def _ts(t: float) -> str:
     return f"{t // 3600}:{t // 60 % 60:02}:{t % 60:02}" if t >= 3600 else f"{t // 60}:{t % 60:02}"
 
 
-def canvas_for(preset: dict, info: dict) -> tuple[tuple[int, int], float]:
+def canvas_for(preset: dict, info: dict) -> tuple[tuple[int, int], float, bool]:
+    """(캔버스, 첫 영상 기준 꽉 채움 배율, cover 여부). 숏폼은 항상 1080×1920에 꽉 채운다(영상마다 비율이 달라도 동일)."""
     w, h = info["width"], info["height"]
-    if preset["canvas"] == "9:16" and w > h:             # 가로 → 세로: 중앙 크롭으로 꽉 채움
+    if preset["canvas"] == "9:16":
         cw, ch = 1080, 1920
-        return (cw, ch), ch / (cw * h / w)
-    return (w, h), 1.0
+        a, b = cw / w, ch / h
+        return (cw, ch), max(a, b) / min(a, b), True
+    return (w, h), 1.0, False
 
 
 def build(tr: Transcript, samples: np.ndarray, keep: list[Interval], info: dict, *, workflow: str,
-          features: dict | None = None, off: set[str] | None = None, glossary: str = "") -> Plan:
+          features: dict | None = None, off: set[str] | None = None, glossary: str = "",
+          sources: list | None = None) -> Plan:
     preset = P.PRESETS[workflow]
     f = {**preset["features"], **(features or {})}
     off = off or set()
@@ -87,7 +91,11 @@ def build(tr: Transcript, samples: np.ndarray, keep: list[Interval], info: dict,
     emph = P.detect_emphasis(tr, samples, keep, min_gap=preset["emphasis_gap"], per_min=preset["emphasis_per_min"],
                              extra_terms=terms) if f.get("emphasis") else []
     hook = P.detect_hook(tr, samples, keep) if f.get("hook") else []
-    chapters = P.detect_chapters(tr, keep, min_len=preset["min_chapter"]) if f.get("chapters") and preset["min_chapter"] else []
+    if f.get("chapters") and sources and len(sources) > 1:      # 여러 영상을 이어붙였으면 영상 하나 = 챕터 하나(파일 이름이 제목)
+        chapters = [P.EditPoint(P._key("chapter", s.offset), "chapter", s.offset, s.end, f"{i:02d} {s.stem[:24]}", 0.0, True,
+                                {"title": s.stem[:24], "why": "영상 경계", "index": i}) for i, s in enumerate(sources, 1)]
+    else:
+        chapters = P.detect_chapters(tr, keep, min_len=preset["min_chapter"]) if f.get("chapters") and preset["min_chapter"] else []
 
     # 줌: 문장 경계 분할 → 100% / zoom 교차
     pieces = P.split_for_zoom(keep, tr, preset["zoom_every"]) if f.get("zoom") else list(keep)
@@ -158,11 +166,11 @@ def build(tr: Transcript, samples: np.ndarray, keep: list[Interval], info: dict,
 
     pts += hook + emph + chapters
     pts.sort(key=lambda p: (p.start, p.kind))
-    (cw, ch), base = canvas_for(preset, info)
+    (cw, ch), base, cover = canvas_for(preset, info)
     prev = {
         "zoom": [{"s": round(c.src_s, 3), "e": round(c.src_e, 3), "scale": round(c.scale, 3)} for c in clips if c.kind == "main"],
         "pops": [{"s": round(e.start, 3), "e": round(e.start + 1.1, 3), "text": e.data["text"]} for e in emph if e.enabled],   # 원본 시각(프리뷰는 원본 재생)
         "chapters": [{"s": round(c.start, 3), "title": c.label} for c in chapters if c.enabled],
     }
     return Plan(clips, subs, overlays, pts, (cw, ch), base, teaser, out_total, chapters_text, preset["sub_size"], workflow, prev,
-                enhance=bool(f.get("enhance")))
+                cover=cover, enhance=bool(f.get("enhance")))
