@@ -211,7 +211,7 @@ dialog input[type=text],dialog input[type=password],.in{width:100%;background:#0
     <div class="wf" id="wf" role="radiogroup" aria-label="워크플로 선택"></div>
     <div class="card" id="refpick" style="margin-top:14px">
       <div class="row" style="justify-content:space-between"><b>레퍼런스에 맞춰 편집 <span class="hint">옵션</span></b><span class="hint" id="refpick-n"></span></div>
-      <div class="hint" style="margin:6px 0 4px">레퍼를 고르면 그 영상의 컷 속도·무음·팝업·자막 크기·줌을 읽어 내 영상에 같은 느낌으로 편집해요. 고르지 않으면 위 워크플로를 그대로 써요. 레퍼 영상은 외부로 나가지 않아요(AI 분석을 켠 레퍼는 예외).</div>
+      <div class="hint" style="margin:6px 0 4px">레퍼 영상을 여러 개 등록해 두고, 이번 영상에 맞는 레퍼 하나를 고르세요. 그 레퍼의 컷 속도·무음·화면 비율(AI 분석 시 팝업·자막 크기·줌)에 맞춰 편집해요. 고르지 않으면 위 워크플로를 그대로 써요.</div>
       <div id="refpick-list"></div>
       <ul class="reasons hide" id="refpick-why"></ul>
     </div>
@@ -398,27 +398,38 @@ $("#wf").addEventListener("click", e => { const b = e.target.closest("button"); 
 $("#feats").addEventListener("change", e => { W.features[e.target.dataset.f] = e.target.checked; });
 $("#o-agg").addEventListener("change", () => W.aggDirty = true);
 
-/* ---------- 레퍼런스에 맞춰 편집 (옵션) ---------- */
-const RP = {sel:new Set(), list:[]};
+/* ---------- 레퍼런스에 맞춰 편집 (옵션): 등록해 둔 레퍼 중 하나를 고른다 ---------- */
+const RP = {sel:null, list:[], sum:{}};
 async function loadRefPick(){
   try { RP.list = (await (await fetch("/api/refs")).json()).filter(r => r.status === "indexed"); } catch(_) { RP.list = []; }
-  RP.sel = new Set([...RP.sel].filter(id => RP.list.some(r => r.id === id)));
-  $("#refpick-list").innerHTML = RP.list.map(r => `<label class="refrow chk" style="grid-template-columns:auto 1fr"><input type="checkbox" class="rp" data-id="${r.id}" ${RP.sel.has(r.id)?"checked":""}>
-    <div>${esc(r.name)} <span class="mt">분당 컷 ${r.metrics.shots_per_min} · 무음 ${Math.round(r.metrics.silence_ratio*100)}% · ${r.aspect}</span></div></label>`).join("")
-    || `<div class="hint">분석이 끝난 레퍼가 없어요. 상단 '레퍼런스'에서 레퍼 영상을 추가하면 여기서 고를 수 있어요.</div>`;
+  if (!RP.list.some(r => r.id === RP.sel)) RP.sel = null;
+  await Promise.all(RP.list.map(async r => {                         // 레퍼마다 '이 레퍼로 편집하면 이렇게 된다' 요약
+    if (RP.sum[r.id] && RP.sum[r.id].at === r.added + ":" + (r.clef ? 1 : 0)) return;
+    try { const d = await (await fetch("/api/refs/style", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ref_ids:[r.id]})})).json();
+          RP.sum[r.id] = {at: r.added + ":" + (r.clef ? 1 : 0), p: d.preset, why: d.reasons}; } catch(_) {}
+  }));
+  const tag = (on, t) => `<i class="tag ${on?"on":""}">${t}</i>`;
+  const row = (id, title, sub, tags) => `<label class="refrow chk" style="grid-template-columns:auto 1fr auto"><input type="radio" name="refsel" class="rp" data-id="${id}" ${RP.sel===id||(!RP.sel&&!id)?"checked":""}>
+    <div>${title} <span class="mt">${sub}</span>${tags?`<div class="tags">${tags}</div>`:""}</div>${id?`<button type="button" class="rren" data-id="${id}">이름</button>`:"<span></span>"}</label>`;
+  $("#refpick-list").innerHTML = row("", "선택 안 함", "위 워크플로를 그대로 써요", "") + RP.list.map(r => {
+    const p = (RP.sum[r.id]||{}).p, f = p ? p.features : {};
+    return row(r.id, esc(r.name), `${r.aspect} · 분당 컷 ${r.metrics.shots_per_min} · 무음 ${Math.round(r.metrics.silence_ratio*100)}%`,
+      p ? tag(true, p.canvas) + tag(f.zoom, "줌") + tag(f.emphasis, "팝업") + tag(f.hook, "훅") + tag(f.chapters, "챕터") : "");
+  }).join("") + (RP.list.length ? "" : `<div class="hint">분석이 끝난 레퍼가 없어요. 상단 '레퍼런스'에서 레퍼 영상을 여러 개 등록해 두면 여기서 골라 쓸 수 있어요.</div>`);
   renderRefPick();
 }
-async function renderRefPick(){
-  $("#refpick-n").textContent = RP.sel.size ? `${RP.sel.size}개 선택` : "";
-  $("#wf").style.opacity = RP.sel.size ? 0.45 : 1; $("#feats").style.opacity = RP.sel.size ? 0.45 : 1;
-  const ul = $("#refpick-why"); ul.classList.toggle("hide", !RP.sel.size);
-  if (!RP.sel.size) return;
-  try {
-    const r = await fetch("/api/refs/style", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ref_ids:[...RP.sel]})});
-    const d = await r.json(); ul.innerHTML = r.ok ? d.reasons.map(x => `<li>${esc(x)}</li>`).join("") : `<li>${esc(d.detail||"")}</li>`;
-  } catch(_) { ul.innerHTML = ""; }
+function renderRefPick(){
+  $("#refpick-n").textContent = RP.sel ? "선택됨" : "";
+  $("#wf").style.opacity = RP.sel ? 0.45 : 1; $("#feats").style.opacity = RP.sel ? 0.45 : 1;
+  const ul = $("#refpick-why"); ul.classList.toggle("hide", !RP.sel);
+  ul.innerHTML = RP.sel && RP.sum[RP.sel] ? RP.sum[RP.sel].why.map(x => `<li>${esc(x)}</li>`).join("") : "";
 }
-$("#refpick-list").addEventListener("change", e => { const c = e.target.closest(".rp"); if (!c) return; c.checked ? RP.sel.add(c.dataset.id) : RP.sel.delete(c.dataset.id); renderRefPick(); });
+$("#refpick-list").addEventListener("change", e => { const c = e.target.closest(".rp"); if (!c) return; RP.sel = c.dataset.id || null; renderRefPick(); });
+$("#refpick-list").addEventListener("click", async e => {
+  const b = e.target.closest(".rren"); if (!b) return; e.preventDefault();
+  const cur = RP.list.find(r => r.id === b.dataset.id), nm = prompt("레퍼 이름", cur ? cur.name.replace(/\.[^.]+$/, "") : ""); if (!nm || !nm.trim()) return;
+  await fetch(`/api/refs/${b.dataset.id}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:nm})}); loadRefPick();
+});
 loadRefPick();
 
 /* ---------- 업로드 (여러 영상 + 자막 파일) ---------- */
@@ -497,7 +508,7 @@ function send(){
   fd.append("subtitles", $("#o-sub").checked);
   fd.append("workflow", W.workflow);
   fd.append("features", JSON.stringify(W.features));
-  if (RP.sel.size) fd.append("ref_ids", [...RP.sel].join(","));
+  if (RP.sel) fd.append("ref_ids", RP.sel);
   fd.append("glossary", $("#o-gl").value);
   fd.append("render", $("#o-render").checked);
   fd.append("ai", $("#o-ai").checked);

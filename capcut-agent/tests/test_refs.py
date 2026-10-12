@@ -275,6 +275,20 @@ def test_ref_option_validation(vids, cf, tmp_path):
         assert c.get("/api/jobs").json() == []                                     # 거절된 요청은 작업을 남기지 않음
 
 
+def test_rename_ref_and_only_one_ref_per_job(vids, cf, tmp_path):
+    with app(tmp_path, cf) as c:
+        (a, b), _ = add_refs(c, [vids["fast"], vids["slow"]])
+        assert c.patch(f"/api/refs/{a}", json={"name": "빠른 숏츠 스타일"}).json()["name"] == "빠른 숏츠 스타일"
+        assert {r["id"]: r["name"] for r in c.get("/api/refs").json()}[a] == "빠른 숏츠 스타일"
+        assert c.patch(f"/api/refs/{a}", json={"name": "  "}).status_code == 400
+        assert c.patch("/api/refs/nope", json={"name": "x"}).status_code == 404
+        up = [("files", ("a.mp4", vids["mine_v"].read_bytes(), "video/mp4"))]
+        assert c.post("/api/jobs", files=up, data={"ref_ids": f"{a},{b}"}).status_code == 400      # 평균 내지 않고 하나만 고른다
+        assert c.get("/api/jobs").json() == []
+        jid, j = job(c, vids["mine_v"], ref_ids=b)                                                  # 느린 레퍼 하나 → 그 스타일
+        assert j["refs"] == [b] and c.get(f"/api/jobs/{jid}/refs/match").json()["names"] == ["slow_h.mp4"]
+
+
 def test_ref_job_survives_restart_and_deleted_ref(vids, cf, tmp_path):
     with app(tmp_path, cf) as c:
         (rid,), _ = add_refs(c, [vids["fast"]])

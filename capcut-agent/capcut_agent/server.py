@@ -47,6 +47,10 @@ class RefIndexReq(BaseModel):
     ai: bool = False                               # Clef-omni로 화면 요소(큰 자막·팝업·줌…)까지 분석 (영상 조각이 외부로 전송됨)
 
 
+class RefRenameReq(BaseModel):
+    name: str
+
+
 class RefIdsReq(BaseModel):
     ref_ids: list[str]
     name: str = ""
@@ -155,6 +159,8 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
             raise HTTPException(400, "features는 JSON이어야 합니다")
         rid_list = [x for x in (ref_ids or "").split(",") if x.strip()]
         ref_why: list[str] = []
+        if len(rid_list) > 1:
+            raise HTTPException(400, "레퍼는 하나만 고를 수 있어요")
         if rid_list:                                     # 옵션: 레퍼런스에 맞춰 편집 (워크플로 대신 레퍼 스타일 사용)
             found = _refs_for(rid_list)
             if len(found) != len(rid_list):
@@ -377,6 +383,18 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
         for rid in ids:
             asyncio.create_task(index_ref(rid, ai))
         return {"ids": ids}
+
+    @app.patch("/api/refs/{rid}")
+    def refs_rename(rid: str, req: RefRenameReq):
+        d = refs.get(rid)
+        name = req.name.strip()[:60]
+        if d is None:
+            raise HTTPException(404, "레퍼를 찾을 수 없습니다")
+        if not name:
+            raise HTTPException(400, "이름을 입력하세요")
+        d["name"] = name
+        refs._write(rid, d)
+        return {"id": rid, "name": name}
 
     @app.post("/api/refs/{rid}/index")
     async def refs_reindex(rid: str, req: RefIndexReq):
