@@ -17,7 +17,7 @@ from .asr import AsrService, Backend, default_backend
 WEB = Path(__file__).resolve().parent.parent / "web"
 MAX_BYTES = 500 << 20
 ALLOWED = {".mp4", ".mov", ".m4v"}
-MAX_TOTAL = int(os.environ.get("CAPCUT_MAX_TOTAL_MB", "4000")) << 20     # 한 번에 올리는 전체 용량
+MAX_TOTAL = int(os.environ.get("MALGGEUM_MAX_TOTAL_MB", "4000")) << 20     # 한 번에 올리는 전체 용량
 
 
 class NewCut(BaseModel):
@@ -76,7 +76,7 @@ class ClipReq(BaseModel):
 
 def create_app(workdir: Path | None = None, backend: Backend | None = None,
                draft_root: Path | None = None, clef_base: str | None = None) -> FastAPI:
-    workdir = workdir or Path(os.environ.get("CAPCUT_WORKDIR", "workspace")).resolve()
+    workdir = workdir or Path(os.environ.get("MALGGEUM_WORKDIR", "workspace")).resolve()
     workdir.mkdir(parents=True, exist_ok=True)
     store = pipeline.JobStore(workdir)
     store.sched = pipeline.Scheduler()
@@ -97,7 +97,7 @@ def create_app(workdir: Path | None = None, backend: Backend | None = None,
             return None
         return CL.ClefClient(c["account_id"], c["token"], base=clef_base or "https://api.cloudflare.com", cache=clef_cache)
 
-    app = FastAPI(title="캡컷 에이전트")
+    app = FastAPI(title="말끔")
 
     def job_or_404(jid: str) -> pipeline.Job:
         j = store.jobs.get(jid)

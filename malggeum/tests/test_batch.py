@@ -6,9 +6,9 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from capcut_agent.asr import Segment, Transcript, Word
-from capcut_agent.audio import SR
-from capcut_agent.server import create_app
+from malggeum.asr import Segment, Transcript, Word
+from malggeum.audio import SR
+from malggeum.server import create_app
 from tests.test_e2e import wait_done
 
 
@@ -56,7 +56,7 @@ class ByLength:
 
 @pytest.fixture(autouse=True)
 def fast(monkeypatch):
-    import capcut_agent.pipeline as pl
+    import malggeum.pipeline as pl
     monkeypatch.setattr(pl, "MIN_STAGE", 0)
 
 
@@ -212,7 +212,7 @@ def test_separate_mode_queues_one_job_per_video(vids, tmp_path):
 
 def test_upload_limits_and_validation(vids, tmp_path, monkeypatch):
     a, b = vids
-    import capcut_agent.server as S
+    import malggeum.server as S
     with make(tmp_path) as c:
         assert c.post("/api/jobs", data={}).status_code in (400, 422)
         assert post(c, [a], mode="zip").status_code == 400

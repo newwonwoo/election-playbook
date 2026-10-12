@@ -7,9 +7,9 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from capcut_agent import audio, plan as PL, render as R
-from capcut_agent.asr import Segment, Transcript, Word
-from capcut_agent.server import create_app
+from malggeum import audio, plan as PL, render as R
+from malggeum.asr import Segment, Transcript, Word
+from malggeum.server import create_app
 from tests.conftest import FakeBackend
 from tests.test_e2e import upload, wait_done
 
@@ -112,7 +112,7 @@ def test_cancel_stops_render(plan_and_info, tmp_path):
 
 @pytest.fixture
 def client(tmp_path, transcript, monkeypatch):
-    import capcut_agent.pipeline as pl
+    import malggeum.pipeline as pl
     monkeypatch.setattr(pl, "MIN_STAGE", 0)
     with TestClient(create_app(workdir=tmp_path / "w", backend=FakeBackend(transcript), draft_root=tmp_path / "d")) as c:
         yield c

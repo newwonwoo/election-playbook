@@ -8,9 +8,9 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from capcut_agent import clef, clips, media, vision as V
-from capcut_agent.asr import Segment, Transcript, Word
-from capcut_agent.server import create_app
+from malggeum import clef, clips, media, vision as V
+from malggeum.asr import Segment, Transcript, Word
+from malggeum.server import create_app
 from tests.fakecf import FakeCF
 from tests.test_e2e import wait_done
 
@@ -100,7 +100,7 @@ class Backend:
 
 @pytest.fixture(autouse=True)
 def fast(monkeypatch):
-    import capcut_agent.pipeline as pl
+    import malggeum.pipeline as pl
     monkeypatch.setattr(pl, "MIN_STAGE", 0)
 
 
@@ -149,7 +149,7 @@ def test_focus_at_does_not_blur_real_movement_at_the_edges():
 
 
 def test_split_by_focus_follows_a_moving_subject_without_changing_timing():
-    from capcut_agent.plan import Clip
+    from malggeum.plan import Clip
     vis = {"windows": [{"start": 0, "end": 8, "focus": 0.18}, {"start": 8, "end": 16, "focus": 0.5}, {"start": 16, "end": 24, "focus": 0.5},
                        {"start": 24, "end": 32, "focus": None}]}
     out = V.split_by_focus([Clip(0, 32, scale=1.15, volume=0.8)], vis)

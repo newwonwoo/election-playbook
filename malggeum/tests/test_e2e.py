@@ -4,16 +4,16 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from capcut_agent import audio
-from capcut_agent.server import create_app
+from malggeum import audio
+from malggeum.server import create_app
 from tests.conftest import FakeBackend
 
 
 
 @pytest.fixture
 def ctx(tmp_path, transcript, monkeypatch):
-    monkeypatch.setenv("CAPCUT_MIN_STAGE", "0")
-    import capcut_agent.pipeline as pl
+    monkeypatch.setenv("MALGGEUM_MIN_STAGE", "0")
+    import malggeum.pipeline as pl
     monkeypatch.setattr(pl, "MIN_STAGE", 0)
     be = FakeBackend(transcript)
     app = create_app(workdir=tmp_path / "w", backend=be, draft_root=tmp_path / "drafts")
@@ -118,7 +118,7 @@ def test_silent_video_gives_clear_error(ctx, tmp_path):
 def test_index_served_and_options_forwarded(ctx, video):
     client, be, _ = ctx
     html = client.get("/").text
-    assert "캡컷 에이전트" in html and "EventSource" in html
+    assert "말끔" in html and "EventSource" in html
     jid = upload(client, video, threshold_db="-40", pad="0", aggressive="true", subtitles="false")
     wait_done(client, jid)
     res = client.get(f"/api/jobs/{jid}").json()["result"]

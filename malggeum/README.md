@@ -1,4 +1,4 @@
-# 캡컷 에이전트
+# 말끔
 
 한국어 토킹 영상(mp4/mov)을 올리면 **무음·잔말·NG 컷, 자막, 훅, 줌, 강조 팝업, 챕터, 음량 보정까지 적용된 완성 mp4**를 자동으로 만드는 로컬 웹 도구입니다. **캡컷은 필요 없습니다**(원하면 같은 편집이 담긴 캡컷 드래프트도 함께 만듭니다).
 [pycapcut](https://github.com/GuanYixuan/pyJianYingDraft) 으로 드래프트를 만들고, FastAPI + 정적 HTML 1장으로 동작합니다.
@@ -6,24 +6,24 @@
 ## 실행 (비용 0원: 전부 내 PC에서 돌아갑니다)
 - **더블클릭**: Mac `start.command` · Windows `start.bat` · 터미널 `./run.sh` — 처음 한 번 자동 설치 후 브라우저가 열립니다(ffmpeg만 미리 설치).
 - **폰·외부에서 쓰기(선택, 무료)**: `./run.sh --tunnel` — 무료 Cloudflare 터널(`cloudflared` 설치 필요) + 자동 생성 비밀번호(`.password`). 영상은 내 PC에서만 처리되고 터널은 통로일 뿐입니다. PC가 켜져 있어야 접속됩니다.
-- 접속 보호(항상 켜짐): 다른 사이트가 보내는 쓰기 요청 차단, 허용되지 않은 호스트 차단, 비밀번호(`CAPCUT_PASSWORD`) 설정 시 로그인 필수·실패 5회/분 잠금.
+- 접속 보호(항상 켜짐): 다른 사이트가 보내는 쓰기 요청 차단, 허용되지 않은 호스트 차단, 비밀번호(`MALGGEUM_PASSWORD`) 설정 시 로그인 필수·실패 5회/분 잠금.
 - 유료가 될 수 있는 유일한 항목은 Clef-omni(선택). Cloudflare 무료 플랜은 하루 10,000 Neurons까지 무료이고 초과하면 과금 없이 요청이 실패합니다(Workers Paid로 올리지 않는 한).
 
 수동 실행:
 ```bash
-cd capcut-agent
+cd malggeum
 pip install -r requirements.txt     # + ffmpeg 필요: brew install ffmpeg / winget install ffmpeg
-python -m capcut_agent.server       # → http://127.0.0.1:8765
+python -m malggeum.server       # → http://127.0.0.1:8765
 ```
 - Mac M칩(트랙 A): `pip install mlx-whisper` 하면 자동으로 mlx-whisper 사용, 그 외는 faster-whisper.
-- 환경변수: `CAPCUT_DRAFT_DIR`(드래프트 폴더 강제 지정), `CAPCUT_WORKDIR`, `PORT`, `CAPCUT_MIN_STAGE`.
+- 환경변수: `CAPCUT_DRAFT_DIR`(드래프트 폴더 강제 지정), `MALGGEUM_WORKDIR`, `PORT`, `MALGGEUM_MIN_STAGE`.
 - CapCut 드래프트 폴더를 못 찾으면 `workspace/output/` 에 저장됩니다(CapCut 설치+1회 실행 후 자동 인식).
 
 ## 완전 자동 (v0.3)
 1. 영상을 올린다 → 2. 워크플로(숏폼/롱폼/강의)를 고른다 → 3. 기다린다 → **완성 mp4 다운로드**.
 - 결과 화면에서 포인트를 끄거나 켜면 완성 영상을 **자동으로 다시 렌더링**합니다(진행률 표시).
 - 숏츠 후보는 버튼 한 번으로 **9:16 mp4**까지 만들어집니다.
-- 렌더링은 ffmpeg로 하며 자막은 ASS(libass)로 입힙니다. 한글 폰트는 Mac `Apple SD Gothic Neo`, Windows `Malgun Gothic`을 쓰고, Linux는 설치된 한글 폰트를 찾습니다. 다른 폰트는 `CAPCUT_FONT="폰트이름"`으로 지정하세요.
+- 렌더링은 ffmpeg로 하며 자막은 ASS(libass)로 입힙니다. 한글 폰트는 Mac `Apple SD Gothic Neo`, Windows `Malgun Gothic`을 쓰고, Linux는 설치된 한글 폰트를 찾습니다. 다른 폰트는 `MALGGEUM_FONT="폰트이름"`으로 지정하세요.
 - 렌더링 없이 캡컷 드래프트만 원하면 옵션에서 "완성 mp4 자동 렌더링"을 끄세요.
 - 출력 위치: `workspace/output/`
 
@@ -54,7 +54,7 @@ python -m capcut_agent.server       # → http://127.0.0.1:8765
 
 ## 작업 관리 (v0.4)
 - **서버를 껐다 켜도 작업이 남습니다.** 첫 화면의 *최근 작업*에서 다시 열고, 중단된 작업은 *다시 시도*로 이어서 처리합니다.
-- 분석은 한 번에 **1건씩**(`CAPCUT_JOBS`로 변경), 나머지는 순번대로 대기합니다. 대기·진행 중에도 **취소**할 수 있습니다.
+- 분석은 한 번에 **1건씩**(`MALGGEUM_JOBS`로 변경), 나머지는 순번대로 대기합니다. 대기·진행 중에도 **취소**할 수 있습니다.
 - **저장 공간**을 표시하고, 오래된 작업(기본 30일)은 확인 후 수동으로 정리합니다. 삭제하면 원본 복사본·완성 mp4·캡컷 드래프트가 모두 지워집니다.
 
 ## 대본으로 편집하기 (v0.4)

@@ -1,8 +1,8 @@
 """사람이 정답을 라벨링한 한국어 강의 대본(연체 채권 관리). 탐지 품질(정밀도/재현율) 측정용."""
 import numpy as np
 
-from capcut_agent.asr import Segment, Transcript, Word
-from capcut_agent.audio import SR
+from malggeum.asr import Segment, Transcript, Word
+from malggeum.audio import SR
 
 # (앞 휴지(초), 문장, 큰 소리로 말한 단어 목록)
 LECTURE = [

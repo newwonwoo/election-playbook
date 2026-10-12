@@ -1,7 +1,7 @@
 import subprocess
 import pytest
 
-from capcut_agent.asr import Segment, Transcript, Word
+from malggeum.asr import Segment, Transcript, Word
 
 
 @pytest.fixture(scope="session")

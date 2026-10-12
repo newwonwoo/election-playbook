@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from capcut_agent import points as P, refs as R, style as STY
-from capcut_agent.server import create_app
+from malggeum import points as P, refs as R, style as STY
+from malggeum.server import create_app
 from tests.fakecf import FakeCF
 from tests.test_e2e import wait_done
 from tests.test_vision import Backend
@@ -64,7 +64,7 @@ class StyleModel:
 
 @pytest.fixture(autouse=True)
 def fast_stages(monkeypatch):
-    import capcut_agent.pipeline as pl
+    import malggeum.pipeline as pl
     monkeypatch.setattr(pl, "MIN_STAGE", 0)
 
 

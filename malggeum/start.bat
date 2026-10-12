@@ -7,5 +7,5 @@ if not exist .venv (
   python -m venv .venv && .venv\Scripts\pip install -q -r requirements.txt || (rmdir /s /q .venv & echo 설치 실패 & pause & exit /b 1)
 )
 start "" http://127.0.0.1:8765
-.venv\Scripts\python -m capcut_agent.server
+.venv\Scripts\python -m malggeum.server
 pause

@@ -24,7 +24,7 @@ TERMINAL = ("done", "error", "cancelled")
 
 class JobCancelled(Exception):
     pass
-MIN_STAGE = float(os.environ.get("CAPCUT_MIN_STAGE", "0.4"))   # 캐시 hit여도 단계가 눈에 보이도록
+MIN_STAGE = float(os.environ.get("MALGGEUM_MIN_STAGE", "0.4"))   # 캐시 hit여도 단계가 눈에 보이도록
 
 
 @dataclass
@@ -116,10 +116,10 @@ class Job:
 
 
 class Scheduler:
-    """분석 작업은 CAPCUT_JOBS건(기본 1)씩, 렌더는 1건씩. 나머지는 순번대로 대기."""
+    """분석 작업은 MALGGEUM_JOBS건(기본 1)씩, 렌더는 1건씩. 나머지는 순번대로 대기."""
 
     def __init__(self, jobs: int | None = None, renders: int = 1) -> None:
-        self.pipe = asyncio.Semaphore(jobs or int(os.environ.get("CAPCUT_JOBS", "1")))
+        self.pipe = asyncio.Semaphore(jobs or int(os.environ.get("MALGGEUM_JOBS", "1")))
         self.render = asyncio.Semaphore(renders)
         self.waiting: list[Job] = []
 

@@ -1,8 +1,8 @@
 """접속 보호: 내 PC에서 도는 서버를 다른 웹사이트·외부 사람이 건드리지 못하게 한다. 비용 0(표준 라이브러리만).
 
-- Host 검사: DNS 리바인딩 방지 (localhost/127.0.0.1 + CAPCUT_ALLOWED_HOSTS 만 허용)
+- Host 검사: DNS 리바인딩 방지 (localhost/127.0.0.1 + MALGGEUM_ALLOWED_HOSTS 만 허용)
 - Origin 검사: 다른 사이트가 보낸 쓰기 요청(POST/PUT/DELETE) 차단 (CSRF)
-- 비밀번호(CAPCUT_PASSWORD): 설정하면 로그인 쿠키가 있어야 접근. 터널로 외부에 열 때 필수
+- 비밀번호(MALGGEUM_PASSWORD): 설정하면 로그인 쿠키가 있어야 접근. 터널로 외부에 열 때 필수
 - 로그인 시도 제한: IP당 1분 5회 실패 시 잠금
 순수 ASGI 미들웨어라 SSE(진행 스트림)·대용량 업로드를 건드리지 않는다.
 """
@@ -15,16 +15,16 @@ import os
 import time
 from urllib.parse import parse_qs, urlsplit
 
-COOKIE = "capcut_auth"
+COOKIE = "malggeum_auth"
 SAFE = {"GET", "HEAD", "OPTIONS"}
 LOGIN_PAGE = """<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>캡컷 에이전트 · 로그인</title><style>
+<title>말끔 · 로그인</title><style>
 body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#0a0a0a;color:#f5f5f5;font:15px system-ui,sans-serif}}
 form{{background:#161616;border:1px solid #262626;border-radius:12px;padding:28px;width:min(320px,90vw);display:grid;gap:12px}}
 input{{background:#0a0a0a;border:1px solid #333;border-radius:8px;color:inherit;padding:10px;font:inherit}}
 button{{background:#22c55e;color:#04210f;border:0;border-radius:8px;padding:10px;font:inherit;font-weight:600;cursor:pointer}}
 p{{margin:0;color:#f87171;font-size:13px}}</style>
-<form method="post" action="/login"><b>캡컷 에이전트</b>{msg}<input type="password" name="password" placeholder="비밀번호" autofocus required><button>들어가기</button></form></html>"""
+<form method="post" action="/login"><b>말끔</b>{msg}<input type="password" name="password" placeholder="비밀번호" autofocus required><button>들어가기</button></form></html>"""
 
 
 class Guard:
@@ -32,13 +32,13 @@ class Guard:
                  max_fails: int = 5, window: float = 60.0):
         self.password = password
         self.hosts = {"localhost", "127.0.0.1", "[::1]", *(h.strip().lower() for h in (allowed_hosts or []) if h.strip())}
-        self._key = hashlib.sha256(("capcut-agent|" + password).encode()).digest()
+        self._key = hashlib.sha256(("malggeum|" + password).encode()).digest()
         self.max_fails, self.window = max_fails, window
         self._fails: dict[str, list[float]] = {}
 
     @classmethod
     def from_env(cls) -> "Guard":
-        return cls(os.environ.get("CAPCUT_PASSWORD", ""), os.environ.get("CAPCUT_ALLOWED_HOSTS", "").split(","))
+        return cls(os.environ.get("MALGGEUM_PASSWORD", ""), os.environ.get("MALGGEUM_ALLOWED_HOSTS", "").split(","))
 
     def token(self) -> str:
         return hmac.new(self._key, b"ok", hashlib.sha256).hexdigest()

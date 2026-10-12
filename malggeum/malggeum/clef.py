@@ -24,7 +24,7 @@ MAX_VIDEOS = 2
 MAX_VIDEO_BYTES = 16 << 20
 MAX_VIDEO_SEC = 60.0
 PRICE_PER_TOKEN = 0.15 / 1_000_000                    # 입력 토큰 100만 개당 $0.15 (출력 무료)
-UA = "capcut-agent/0.6 (local video editing tool)"     # 파이썬 기본 UA는 Cloudflare 봇 차단(오류 1010)에 걸린다
+UA = "malggeum/0.6 (local video editing tool)"     # 파이썬 기본 UA는 Cloudflare 봇 차단(오류 1010)에 걸린다
 _ID = re.compile(r"^[A-Za-z0-9_.\-]{1,100}$")
 RETRY_STATUS = {429, 500, 502, 503, 504}
 

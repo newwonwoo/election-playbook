@@ -1,7 +1,7 @@
 import numpy as np
 
-from capcut_agent import audio, cuts as C, filler, subtitles
-from capcut_agent.asr import Segment, Transcript, Word
+from malggeum import audio, cuts as C, filler, subtitles
+from malggeum.asr import Segment, Transcript, Word
 
 
 def test_subtract_and_merge():

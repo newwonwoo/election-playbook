@@ -3,8 +3,8 @@ import stat
 
 import pytest
 
-from capcut_agent import clef
-from capcut_agent.settings import Settings
+from malggeum import clef
+from malggeum.settings import Settings
 from tests.fakecf import FakeCF
 
 

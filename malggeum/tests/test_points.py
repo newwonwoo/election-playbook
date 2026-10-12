@@ -2,8 +2,8 @@ import math
 
 import numpy as np
 
-from capcut_agent import plan as PL, points as P, text as T
-from capcut_agent.audio import SR
+from malggeum import plan as PL, points as P, text as T
+from malggeum.audio import SR
 from tests.fixtures import (CHAPTER_STARTS, EXPECT_EMPHASIS, HOOK_IDX, LECTURE, NOT_EMPHASIS, make_lecture)
 
 
@@ -146,7 +146,7 @@ def test_point_toggle_off_disables_effect():
 
 
 def test_emphasis_does_not_repeat_same_term_quickly():
-    from capcut_agent.asr import Segment, Transcript, Word
+    from malggeum.asr import Segment, Transcript, Word
     loud_at = [2.0, 6.0, 10.0, 40.0]
     segs = [Segment(t0, t0 + 1, "연체", [Word(t0, t0 + 0.8, "연체")]) for t0 in loud_at]
     quiet = [Segment(t0, t0 + 1, "그냥", [Word(t0, t0 + 0.8, "그냥")]) for t0 in (14, 18, 22, 26, 30, 34, 36, 38, 42, 43)]

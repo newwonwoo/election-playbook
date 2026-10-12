@@ -4,7 +4,7 @@ import subprocess
 import pytest
 from fastapi.testclient import TestClient
 
-from capcut_agent.server import create_app
+from malggeum.server import create_app
 from tests.conftest import FakeBackend
 from tests.fixtures import make_lecture
 from tests.test_e2e import upload, wait_done
@@ -23,7 +23,7 @@ def lecture_video(tmp_path_factory):
 
 @pytest.fixture
 def ctx(tmp_path, lecture_video, monkeypatch):
-    import capcut_agent.pipeline as pl
+    import malggeum.pipeline as pl
     monkeypatch.setattr(pl, "MIN_STAGE", 0)
     _, tr = lecture_video
     with TestClient(create_app(workdir=tmp_path / "w", backend=FakeBackend(tr), draft_root=tmp_path / "d")) as c:

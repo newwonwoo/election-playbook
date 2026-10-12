@@ -31,9 +31,9 @@ _FONT_CANDIDATES = ["Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR", 
 
 
 def pick_font() -> str:
-    """한글이 되는 폰트. CAPCUT_FONT로 강제 지정 가능."""
-    if os.environ.get("CAPCUT_FONT"):
-        return os.environ["CAPCUT_FONT"]
+    """한글이 되는 폰트. MALGGEUM_FONT로 강제 지정 가능."""
+    if os.environ.get("MALGGEUM_FONT"):
+        return os.environ["MALGGEUM_FONT"]
     s = platform.system()
     if s == "Darwin":
         return "Apple SD Gothic Neo"

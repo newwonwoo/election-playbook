@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from capcut_agent.server import create_app
+from malggeum.server import create_app
 from tests.conftest import FakeBackend
 from tests.test_e2e import upload, wait_done
 
@@ -24,7 +24,7 @@ class SlowBackend(FakeBackend):
 
 @pytest.fixture(autouse=True)
 def fast(monkeypatch):
-    import capcut_agent.pipeline as pl
+    import malggeum.pipeline as pl
     monkeypatch.setattr(pl, "MIN_STAGE", 0)
 
 

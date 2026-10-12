@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from fastapi.testclient import TestClient
 
-from capcut_agent.guard import COOKIE, Guard
+from malggeum.guard import COOKIE, Guard
 
 
 def make(guard: Guard) -> TestClient:
